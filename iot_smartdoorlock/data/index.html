@@ -1,0 +1,2906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SmartLock — Face Recognition System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   DESIGN TOKENS (LIGHT THEME DEFAULT)
+   ========================================================= */
+:root {
+  --bg:        #f4f7f6;
+  --surface:   #ffffff;
+  --surface2:  #f8fafc;
+  --border:    #e2e8f0;
+  --border2:   #cbd5e1;
+  --text:      #0f172a;
+  --text2:     #475569;
+  --text3:     #94a3b8;
+  --accent:    #3b82f6;
+  --accent2:   #2563eb;
+  --success:   #10b981;
+  --danger:    #ef4444;
+  --warning:   #f59e0b;
+  --sidebar-w: 240px;
+  --radius:    10px;
+  --font:      'DM Sans', sans-serif;
+  --mono:      'DM Mono', monospace;
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="dark"] {
+  --bg:        #0d0f14;
+  --surface:   #151820;
+  --surface2:  #1c2030;
+  --border:    #232840;
+  --border2:   #2e3555;
+  --text:      #e4e8f5;
+  --text2:     #8892b0;
+  --text3:     #4a5568;
+  --accent:    #4f8ef7;
+  --accent2:   #3a72d4;
+  --success:   #2dd4a8;
+  --danger:    #f65c6e;
+  --warning:   #f5a623;
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex;min-height:100vh;overflow-x:hidden;font-size:14px;transition:background-color 0.3s, color 0.3s;}
+
+/* =========================================================
+   LOGIN SCREEN
+   ========================================================= */
+.login-screen {
+  position: fixed; inset: 0; z-index: 9998; /* Di bawah toast (9999) */
+  background: var(--bg); display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+.login-screen.hidden {
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.login-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 40px 32px; width: 100%; max-width: 380px;
+  box-shadow: var(--shadow-card);
+  transition: background-color 0.3s, border-color 0.3s;
+}
+.eye-btn {
+  position: absolute; right: 12px; bottom: 8px; cursor: pointer; color: var(--text3);
+  display: flex; align-items: center; justify-content: center; transition: 0.2s;
+  padding: 4px; border-radius: 6px;
+}
+.eye-btn:hover { color: var(--accent); background: var(--surface2); }
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+.sidebar{
+  width:var(--sidebar-w);min-width:var(--sidebar-w);
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  position:fixed;top:0;left:0;bottom:0;z-index:200;
+  transition:transform .25s ease, background-color 0.3s, border-color 0.3s;
+}
+.sidebar-logo{
+  padding:24px 20px 20px;
+  display:flex;align-items:center;gap:10px;
+  border-bottom:1px solid var(--border);
+}
+.logo-icon{
+  width:34px;height:34px;border-radius:8px;
+  background:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.logo-text{font-weight:600;font-size:15px;letter-spacing:-.3px;line-height:1.2}
+.logo-sub{font-size:10px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;font-weight:500}
+
+.sidebar-nav{flex:1;padding:12px 0;overflow-y:auto}
+.nav-section{padding:12px 20px 6px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);font-weight:600}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 20px;cursor:pointer;
+  color:var(--text2);font-size:13.5px;font-weight:500;
+  border-left:2px solid transparent;
+  transition:.15s;user-select:none;
+}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{color:var(--accent);background:rgba(79,142,247,.08);border-left-color:var(--accent)}
+.nav-item svg{flex-shrink:0;opacity:.85}
+
+.sidebar-footer{
+  padding:16px 20px;
+  border-top:1px solid var(--border);
+}
+.sys-status{
+  display:flex;align-items:center;gap:8px;
+  font-size:12px;color:var(--text2);
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--success);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* =========================================================
+   MAIN LAYOUT & CARDS
+   ========================================================= */
+.main{
+  margin-left:var(--sidebar-w);
+  flex:1;display:flex;flex-direction:column;min-height:100vh;
+}
+.topbar{
+  height:58px;display:flex;align-items:center;
+  padding:0 24px;justify-content:space-between;
+  border-bottom:1px solid var(--border);
+  background:var(--surface);
+  position:sticky;top:0;z-index:100;
+  transition:background-color 0.3s, border-color 0.3s;
+}
+.topbar-title{font-size:15px;font-weight:600;letter-spacing:-.2px}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.badge{
+  padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;
+  letter-spacing:.3px;text-transform:uppercase;
+}
+.badge-success{background:rgba(45,212,168,.12);color:var(--success)}
+.badge-danger{background:rgba(246,92,110,.12);color:var(--danger)}
+.badge-warning{background:rgba(245,166,35,.12);color:var(--warning)}
+.badge-info{background:rgba(79,142,247,.12);color:var(--accent)}
+
+.btn-icon{
+  width:34px;height:34px;border-radius:var(--radius);
+  background:var(--surface2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:.15s;
+}
+.btn-icon:hover{border-color:var(--border2);background:var(--border)}
+
+.content{flex:1;padding:24px;overflow-y:auto}
+
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:20px;
+  box-shadow:var(--shadow-card);
+  transition:background-color 0.3s, border-color 0.3s;
+}
+.card-title{
+  font-size:11px;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--text2);font-weight:600;margin-bottom:16px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.card-title-text{display:flex;align-items:center;gap:6px}
+
+/* =========================================================
+   STAT TILES
+   ========================================================= */
+.stat-tile{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 20px;
+  display:flex;align-items:flex-start;justify-content:space-between;
+  box-shadow:var(--shadow-card);
+  transition:background-color 0.3s, border-color 0.3s;
+}
+.stat-icon{
+  width:38px;height:38px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.stat-val{font-size:26px;font-weight:600;letter-spacing:-1px;line-height:1}
+.stat-label{font-size:12px;color:var(--text2);margin-top:4px}
+.stat-trend{font-size:11px;font-weight:600;margin-top:6px}
+.trend-up{color:var(--success)}
+.trend-down{color:var(--danger)}
+
+/* =========================================================
+   SCANNER TAB
+   ========================================================= */
+.scanner-layout{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+
+.video-wrap{position:relative;width:100%;aspect-ratio:4/3;border-radius:var(--radius);overflow:hidden;background:#000}
+video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+#overlay-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1)}
+
+.scan-line{
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  animation:scandown 2.8s linear infinite;opacity:0;pointer-events:none;
+  box-shadow:0 0 12px var(--accent);
+}
+@keyframes scandown{0%{top:0;opacity:1}100%{top:100%;opacity:.2}}
+.scan-line.scanning{opacity:1}
+
+.corner{position:absolute;width:22px;height:22px;pointer-events:none}
+.corner-tl{top:14px;left:14px;border-top:2px solid var(--accent);border-left:2px solid var(--accent);border-radius:3px 0 0 0}
+.corner-tr{top:14px;right:14px;border-top:2px solid var(--accent);border-right:2px solid var(--accent);border-radius:0 3px 0 0}
+.corner-bl{bottom:14px;left:14px;border-bottom:2px solid var(--accent);border-left:2px solid var(--accent);border-radius:0 0 0 3px}
+.corner-br{bottom:14px;right:14px;border-bottom:2px solid var(--accent);border-right:2px solid var(--accent);border-radius:0 0 3px 0}
+
+.video-overlay-info{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(transparent,rgba(0,0,0,.7));
+  padding:16px;
+  display:flex;align-items:flex-end;justify-content:space-between;
+}
+.cam-label{font-size:11px;color:rgba(255,255,255,.6);font-family:var(--mono)}
+.cam-controls{display:flex;gap:8px}
+.cam-btn{
+  width:30px;height:30px;border-radius:6px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:.15s;
+}
+.cam-btn:hover{background:rgba(255,255,255,.25)}
+
+/* =========================================================
+   RECOGNITION PANEL
+   ========================================================= */
+.recog-panel{display:flex;flex-direction:column;gap:14px}
+.status-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;
+}
+.status-indicator{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.status-led{
+  width:10px;height:10px;border-radius:50%;
+  background:var(--text3);transition:.3s;flex-shrink:0;
+}
+.status-led.active{background:var(--success);box-shadow:0 0 8px var(--success)}
+.status-led.warn{background:var(--warning);box-shadow:0 0 8px var(--warning)}
+.status-led.error{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+.status-label{font-size:13px;font-weight:600}
+.status-sub{font-size:12px;color:var(--text2);margin-top:2px}
+
+.conf-meter{margin-top:12px}
+.conf-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:6px}
+.conf-bar{height:5px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.conf-fill{height:100%;width:0;border-radius:4px;background:var(--success);transition:width .5s ease}
+.conf-fill.low{background:var(--danger)}
+.conf-fill.mid{background:var(--warning)}
+
+.face-result{display:flex;align-items:center;gap:12px;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);transition:.3s}
+.face-avatar{
+  width:44px;height:44px;border-radius:8px;
+  background:var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  font-size:18px;font-weight:700;color:var(--accent);
+  overflow:hidden;position:relative;
+}
+.face-name{font-size:14px;font-weight:600}
+.face-meta{font-size:11px;color:var(--text2);margin-top:2px;font-family:var(--mono)}
+
+.open-btn{
+  width:100%;padding:14px;border-radius:var(--radius);
+  border:none;cursor:pointer;
+  font-family:var(--font);font-size:13px;font-weight:600;
+  letter-spacing:.3px;text-transform:uppercase;
+  background:var(--accent);color:#fff;
+  transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.open-btn:hover{background:var(--accent2)}
+.open-btn:active{transform:scale(.98)}
+.open-btn-outline{
+  background:transparent;border:1px solid var(--border2);
+  color:var(--text2);margin-top:8px;
+}
+.open-btn-outline:hover{background:var(--surface2);color:var(--text)}
+
+.lock-display{
+  background:var(--surface2);border-radius:var(--radius);
+  padding:20px;text-align:center;border:1px solid var(--border);
+}
+.lock-icon-wrap{
+  width:64px;height:64px;border-radius:50%;
+  background:rgba(246,92,110,.1);border:2px solid var(--danger);
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 12px;transition:.5s;
+}
+.lock-icon-wrap.unlocked{background:rgba(45,212,168,.1);border-color:var(--success)}
+.lock-state-text{font-size:13px;font-weight:600;color:var(--danger)}
+.lock-state-text.unlocked{color:var(--success)}
+.lock-time{font-size:11px;color:var(--text2);margin-top:4px;font-family:var(--mono)}
+
+/* =========================================================
+   ACCESS LOG & DATABASE
+   ========================================================= */
+.log-table{width:100%;border-collapse:collapse}
+.log-table th{
+  font-size:10px;letter-spacing:.7px;text-transform:uppercase;
+  color:var(--text3);font-weight:600;
+  padding:8px 12px;text-align:left;
+  border-bottom:1px solid var(--border);
+}
+.log-table td{
+  padding:10px 12px;border-bottom:1px solid var(--border);
+  font-size:13px;vertical-align:middle;
+}
+.log-table tr:last-child td{border-bottom:none}
+.log-table tr:hover td{background:var(--surface2)}
+.log-name{font-weight:500}
+.log-time{font-family:var(--mono);font-size:12px;color:var(--text2)}
+.log-result{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
+.log-result.ok{color:var(--success)}
+.log-result.fail{color:var(--danger)}
+.log-conf{font-size:11px;color:var(--text2);font-family:var(--mono)}
+.log-empty{text-align:center;padding:40px;color:var(--text3);font-size:13px}
+
+.db-layout{display:grid;grid-template-columns:360px 1fr;gap:20px;align-items:start}
+.form-group{margin-bottom:16px}
+.form-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:7px;display:block;letter-spacing:.3px;text-transform:uppercase}
+.form-input{
+  width:100%;padding:10px 14px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);
+  font-family:var(--font);font-size:13.5px;
+  transition:.15s;outline:none;
+}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,142,247,.12)}
+.form-input::placeholder{color:var(--text3)}
+
+.file-drop{
+  border:1.5px dashed var(--border2);border-radius:8px;
+  padding:28px 20px;text-align:center;cursor:pointer;
+  transition:.2s;background:var(--surface2);position:relative;overflow:hidden;
+}
+.file-drop:hover{border-color:var(--accent);background:rgba(79,142,247,.04)}
+.file-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.file-drop-icon{margin-bottom:8px;opacity:.6}
+.file-drop-text{font-size:13px;color:var(--text2)}
+.file-drop-sub{font-size:11px;color:var(--text3);margin-top:4px}
+.file-preview{
+  display:none;align-items:center;gap:12px;
+  padding:10px;background:var(--surface);border-radius:8px;
+  border:1px solid var(--border);margin-top:10px;
+}
+.file-preview.show{display:flex}
+.file-preview img{width:48px;height:48px;object-fit:cover;border-radius:6px}
+.file-preview-name{font-size:12px;font-weight:500}
+.file-preview-size{font-size:11px;color:var(--text2)}
+
+.btn-submit{
+  width:100%;padding:12px;border-radius:8px;
+  background:var(--accent);color:#fff;border:none;
+  font-family:var(--font);font-size:13px;font-weight:600;
+  cursor:pointer;transition:.2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  letter-spacing:.2px;
+}
+.btn-submit:hover{background:var(--accent2)}
+.btn-submit:disabled{opacity:.5;cursor:not-allowed}
+
+.user-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.user-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  text-align:center;transition:.15s;position:relative;
+}
+.user-card:hover{border-color:var(--border2)}
+.user-avatar{
+  width:56px;height:56px;border-radius:50%;
+  background:rgba(79,142,247,.15);border:2px solid rgba(79,142,247,.3);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:700;color:var(--accent);
+  overflow:hidden;
+}
+.user-card-name{font-size:14px;font-weight:600}
+.user-card-id{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.user-card-date{font-size:11px;color:var(--text2);margin-top:4px}
+.user-card-actions{display:flex;gap:6px;width:100%}
+.btn-sm{
+  flex:1;padding:7px;border-radius:6px;border:none;
+  font-family:var(--font);font-size:11px;font-weight:600;
+  cursor:pointer;transition:.15s;letter-spacing:.2px;
+}
+.btn-del{background:rgba(246,92,110,.12);color:var(--danger)}
+.btn-del:hover{background:rgba(246,92,110,.25)}
+.btn-edit{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}
+.btn-edit:hover{color:var(--text)}
+.user-badge{position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--success);}
+
+/* =========================================================
+   SETTINGS TAB
+   ========================================================= */
+.settings-list{display:flex;flex-direction:column;gap:0}
+.settings-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 0;border-bottom:1px solid var(--border);
+}
+.settings-item:last-child{border-bottom:none}
+.settings-info{display:flex;flex-direction:column;gap:3px}
+.settings-name{font-size:13.5px;font-weight:500}
+.settings-desc{font-size:12px;color:var(--text2)}
+.toggle{
+  width:40px;height:22px;border-radius:20px;
+  background:var(--border2);position:relative;cursor:pointer;
+  transition:.25s;flex-shrink:0;
+}
+.toggle.on{background:var(--accent)}
+.toggle::after{
+  content:'';position:absolute;top:3px;left:3px;
+  width:16px;height:16px;border-radius:50%;
+  background:#fff;transition:.25s;
+}
+.toggle.on::after{left:21px}
+.settings-select{
+  background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);padding:7px 12px;border-radius:7px;
+  font-family:var(--font);font-size:12px;outline:none;
+}
+.settings-val{font-size:13px;font-family:var(--mono);color:var(--accent)}
+
+/* =========================================================
+   MODAL & TOAST
+   ========================================================= */
+.toast-wrap{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px}
+.toast{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:12px 16px;font-size:13px;min-width:260px;
+  display:flex;align-items:flex-start;gap:10px;
+  animation:slidein .25s ease;box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+@keyframes slidein{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
+.toast-icon{flex-shrink:0;margin-top:1px}
+.toast-title{font-weight:600;font-size:13px}
+.toast-msg{font-size:12px;color:var(--text2);margin-top:2px}
+.toast.success .toast-icon{color:var(--success)}
+.toast.danger .toast-icon{color:var(--danger)}
+.toast.info .toast-icon{color:var(--accent)}
+
+.modal-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);
+  z-index:500;display:none;align-items:center;justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.modal-bg.show{display:flex}
+.modal{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;width:460px;max-width:95vw;padding:28px;
+}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-size:16px;font-weight:600}
+.modal-close{
+  width:30px;height:30px;border-radius:6px;
+  background:var(--surface2);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);
+}
+.modal-close:hover{color:var(--text)}
+
+/* =========================================================
+   LOADING & PAGES
+   ========================================================= */
+.loader{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;padding:60px 0;}
+.spinner{width:36px;height:36px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--accent);animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-text{font-size:13px;color:var(--text2)}
+.page{display:none}
+.page.active{display:block}
+
+/* =========================================================
+   SIDEBAR OVERLAY (MOBILE)
+   ========================================================= */
+.sidebar-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 150;
+  opacity: 0; visibility: hidden; transition: 0.3s ease; backdrop-filter: blur(2px);
+}
+.sidebar-overlay.show { opacity: 1; visibility: visible; }
+@media(min-width: 901px) { .sidebar-overlay { display: none !important; } }
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%); box-shadow: 4px 0 24px rgba(0,0,0,0.5);}
+  .sidebar.open{transform:translateX(0);}
+  .main{margin-left:0}
+  .scanner-layout{grid-template-columns:1fr}
+  .db-layout{grid-template-columns:1fr}
+  .grid-4{grid-template-columns:1fr 1fr}
+  .grid-3{grid-template-columns:1fr 1fr}
+  .grid-2{grid-template-columns:1fr}
+  .topbar .btn-icon#hamburger { display: flex !important; }
+}
+@media(max-width:600px){
+  .grid-4{grid-template-columns:1fr}
+  .grid-3{grid-template-columns:1fr}
+  .content{padding:16px}
+  .stat-tile{padding:14px 16px}
+  .card{padding:16px}
+  .topbar { padding: 0 16px; }
+  .log-table th, .log-table td { padding: 8px; font-size: 12px; }
+}
+@media(max-width:400px){
+  .topbar { padding: 0 12px; }
+  .topbar-right { gap: 6px; }
+  .topbar-title { font-size: 14px; }
+  .badge { padding: 3px 8px; font-size: 10px; }
+  .btn-icon { width: 30px; height: 30px; }
+  .stat-val{font-size:22px}
+}
+
+/* =========================================================
+   SCROLLBAR & MISC
+   ========================================================= */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.divider{height:1px;background:var(--border);margin:20px 0}
+.section-label{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);font-weight:600;margin-bottom:12px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;}
+
+/* =========================================================
+   CNN METRICS PAGE
+   ========================================================= */
+.metric-formula{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 18px;font-family:var(--mono);font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:12px}
+.metric-formula .formula-val{color:var(--accent);font-weight:600}
+.metric-formula .formula-label{color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px}
+.confusion-matrix{display:grid;grid-template-columns:auto 1fr 1fr;grid-template-rows:auto 1fr 1fr;gap:2px;max-width:320px;margin:0 auto}
+.cm-cell{padding:16px 12px;text-align:center;border-radius:6px;font-size:13px;font-weight:600;transition:.3s}
+.cm-header{font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);font-weight:600;display:flex;align-items:center;justify-content:center}
+.cm-tp{background:rgba(45,212,168,.15);color:var(--success)}
+.cm-tn{background:rgba(79,142,247,.1);color:var(--accent)}
+.cm-fp{background:rgba(245,166,35,.12);color:var(--warning)}
+.cm-fn{background:rgba(246,92,110,.12);color:var(--danger)}
+.cm-val{font-size:22px;font-weight:700;display:block}
+.cm-label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;opacity:.7}
+.sparkline-wrap{height:60px;position:relative;margin-top:8px}
+.sparkline-wrap canvas{width:100%;height:100%}
+.latency-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.latency-item{text-align:center;padding:10px;background:var(--surface2);border-radius:8px}
+.latency-val{font-size:18px;font-weight:600;font-family:var(--mono);color:var(--accent)}
+.latency-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}
+
+/* =========================================================
+   WHATSAPP NOTIFICATIONS PAGE
+   ========================================================= */
+.wa-status-bar{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);margin-bottom:16px}
+.wa-status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.wa-status-dot.online{background:#25d366;box-shadow:0 0 8px #25d366}
+.wa-status-dot.offline{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+.wa-mode-switch{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:16px}
+.wa-mode-btn{flex:1;padding:12px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;transition:.2s;border:none;background:none;color:var(--text2);font-family:var(--font)}
+.wa-mode-btn.active{background:var(--accent);color:#fff}
+.wa-phone-tag{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;font-size:12px;font-weight:500;margin:4px}
+.wa-phone-tag .remove-phone{cursor:pointer;opacity:.5;transition:.2s;display:flex}
+.wa-phone-tag .remove-phone:hover{opacity:1;color:var(--danger)}
+.wa-override-banner{display:flex;align-items:center;gap:10px;padding:14px 18px;background:rgba(246,92,110,.06);border:1px solid rgba(246,92,110,.2);border-radius:8px;margin-top:12px}
+.wa-override-icon{width:36px;height:36px;border-radius:8px;background:rgba(246,92,110,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.wa-preview-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--text2);font-family:var(--mono);white-space:pre-wrap;max-height:180px;overflow-y:auto;margin-top:10px}
+
+/* =========================================================
+   MULTI-CAMERA & QR PAIRING
+   ========================================================= */
+.cam-select-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.cam-dropdown{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:7px;font-family:var(--font);font-size:12px;outline:none;max-width:220px}
+.cam-mode-toggle{display:flex;gap:0;background:var(--surface2);border:1px solid var(--border);border-radius:7px;overflow:hidden}
+.cam-mode-btn{padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--text2);font-family:var(--font);transition:.15s;letter-spacing:.2px}
+.cam-mode-btn.active{background:var(--accent);color:#fff}
+.multi-cam-grid{display:grid;gap:12px;margin-top:12px}
+.multi-cam-grid.grid-1{grid-template-columns:1fr}
+.multi-cam-grid.grid-2x{grid-template-columns:1fr 1fr}
+.multi-cam-grid.grid-3x{grid-template-columns:1fr 1fr 1fr}
+.remote-cam-card{position:relative;border-radius:var(--radius);overflow:hidden;background:#000;aspect-ratio:4/3}
+.remote-cam-card video{width:100%;height:100%;object-fit:cover}
+.remote-cam-label{position:absolute;bottom:8px;left:8px;font-size:10px;color:rgba(255,255,255,.7);font-family:var(--mono);background:rgba(0,0,0,.5);padding:3px 8px;border-radius:4px}
+.remote-cam-close{position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:6px;background:rgba(0,0,0,.5);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s}
+.remote-cam-close:hover{background:var(--danger)}
+.devices-panel{margin-top:14px}
+.device-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.device-item:last-child{border-bottom:none}
+.device-info{display:flex;align-items:center;gap:8px}
+.device-dot{width:8px;height:8px;border-radius:50%;background:var(--success)}
+.qr-modal-content{text-align:center;padding:10px}
+.qr-modal-content canvas{margin:16px auto;border-radius:8px;border:4px solid #fff;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.qr-instructions{font-size:12px;color:var(--text2);margin-top:12px;line-height:1.6}
+.fullscreen-btn{position:absolute;top:14px;right:14px;z-index:10;width:30px;height:30px;border-radius:6px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
+.fullscreen-btn:hover{background:rgba(255,255,255,.2)}
+
+/* =========================================================
+   RECOGNITION DIALOG OVERLAYS
+   ========================================================= */
+.recog-dialog{position:fixed;inset:0;z-index:600;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);backdrop-filter:blur(4px)}
+.recog-dialog.show{display:flex}
+.recog-dialog-card{background:var(--surface);border-radius:16px;padding:32px;text-align:center;max-width:360px;width:90%;animation:dialogPop .3s ease}
+@keyframes dialogPop{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+.recog-dialog-icon{width:64px;height:64px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center}
+.recog-dialog-icon.granted{background:rgba(45,212,168,.12);border:2px solid var(--success)}
+.recog-dialog-icon.denied{background:rgba(246,92,110,.12);border:2px solid var(--danger)}
+.recog-dialog-title{font-size:18px;font-weight:600;margin-bottom:6px}
+.recog-dialog-msg{font-size:13px;color:var(--text2);line-height:1.5}
+
+/* =========================================================
+   NETWORK TOPOLOGY
+   ========================================================= */
+.topo-diagram{display:flex;align-items:center;justify-content:center;gap:20px;padding:20px;flex-wrap:wrap}
+.topo-node{text-align:center;padding:16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;min-width:100px}
+.topo-node-icon{font-size:24px;margin-bottom:6px}
+.topo-node-label{font-size:11px;font-weight:600;color:var(--text)}
+.topo-node-sub{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+.topo-arrow{color:var(--text3);font-size:18px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div style="text-align:center; margin-bottom: 28px;">
+      <div class="logo-icon" style="margin: 0 auto 16px; width: 56px; height: 56px; border-radius: 12px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          <circle cx="12" cy="16" r="1"/>
+        </svg>
+      </div>
+      <h2 style="font-size: 20px; font-weight: 600; letter-spacing: -0.5px;" data-i18n="Admin Login">Admin Login</h2>
+      <p style="font-size: 13px; color: var(--text2); margin-top: 6px;" data-i18n="Please enter your password">Please enter your password</p>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" data-i18n="Username">Username</label>
+      <input class="form-input" type="text" value="FaceRecognition" readonly style="opacity: 0.6; cursor: not-allowed; background: var(--border);">
+    </div>
+
+    <div class="form-group" style="position: relative;">
+      <label class="form-label" data-i18n="Password">Password</label>
+      <input class="form-input" type="password" id="login-password" placeholder="••••••••" onkeypress="if(event.key==='Enter') attemptLogin()" style="padding-right: 40px;">
+      <div class="eye-btn" onclick="togglePassword()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="eye-icon-svg">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </div>
+    </div>
+
+    <button class="btn-submit" onclick="attemptLogin()" style="margin-top: 24px; padding: 14px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      <span data-i18n="Login">Login</span>
+    </button>
+  </div>
+</div>
+
+<!-- ========== SIDEBAR OVERLAY ========== -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ========== SIDEBAR ========== -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        <circle cx="12" cy="16" r="1"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">SmartLock</div>
+      <div class="logo-sub" data-i18n="Face Recognition">Face Recognition</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section" data-i18n="Monitoring">Monitoring</div>
+
+    <div class="nav-item active" onclick="navigate('dashboard')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      <span data-i18n="Dashboard">Dashboard</span>
+    </div>
+
+    <div class="nav-item" onclick="navigate('scanner')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+      <span data-i18n="Live Scanner">Live Scanner</span>
+    </div>
+
+    <div class="nav-item" onclick="navigate('cnn')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
+      </svg>
+      <span data-i18n="CNN Metrics">CNN Metrics</span>
+    </div>
+
+    <div class="nav-item" onclick="navigate('log')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      <span data-i18n="Access Log">Access Log</span>
+    </div>
+
+    <div class="nav-section" data-i18n="Management">Management</div>
+
+    <div class="nav-item" onclick="navigate('database')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+      <span data-i18n="Face Database">Face Database</span>
+    </div>
+
+    <div class="nav-item" onclick="navigate('whatsapp')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+      </svg>
+      <span data-i18n="WhatsApp">WhatsApp</span>
+    </div>
+
+    <div class="nav-item" onclick="navigate('settings')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M20.49 12H22M2 12h1.51M19.07 19.07l-1.41-1.41M5.34 5.34 3.93 3.93M12 20.49V22M12 2v1.51"/>
+      </svg>
+      <span data-i18n="Settings">Settings</span>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="sys-status">
+      <div class="dot" id="sys-dot"></div>
+      <div>
+        <div style="font-size:12px;font-weight:500" id="sys-label" data-i18n="System Online">System Online</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:1px;font-family:var(--mono)" id="sys-ip">192.168.4.1</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ========== MAIN ========== -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:14px">
+      <!-- Hamburger for mobile -->
+      <div class="btn-icon" style="display:none" id="hamburger" onclick="toggleSidebar()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </div>
+      <span class="topbar-title" id="topbar-title" data-i18n="Dashboard">Dashboard</span>
+    </div>
+    <div class="topbar-right">
+      <span class="badge badge-success" id="ai-badge" data-i18n="AI Ready">AI Ready</span>
+      <span id="lock-badge" class="badge badge-danger" data-i18n="Locked">Locked</span>
+      <div class="btn-icon" id="btn-manual-lock-top" title="Manual Open" onclick="manualOpen()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div class="btn-icon" title="Reset Settings" onclick="confirmResetSettings()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ===== PAGE: DASHBOARD ===== -->
+    <div class="page active" id="page-dashboard">
+
+      <!-- Stat tiles -->
+      <div class="grid-4">
+
+        <div class="stat-tile">
+          <div>
+            <div class="stat-val" id="stat-users">0</div>
+            <div class="stat-label" data-i18n="Registered Users">Registered Users</div>
+            <div class="stat-trend trend-up" id="stat-users-trend">—</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(79,142,247,.12)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f8ef7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+        </div>
+
+        <div class="stat-tile">
+          <div>
+            <div class="stat-val" id="stat-granted">0</div>
+            <div class="stat-label" data-i18n="Access Granted">Access Granted</div>
+            <div class="stat-trend trend-up" data-i18n="Today">Today</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(45,212,168,.12)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2dd4a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+        </div>
+
+        <div class="stat-tile">
+          <div>
+            <div class="stat-val" id="stat-denied">0</div>
+            <div class="stat-label" data-i18n="Access Denied">Access Denied</div>
+            <div class="stat-trend trend-down" data-i18n="Today">Today</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(246,92,110,.12)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f65c6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+        </div>
+
+        <div class="stat-tile">
+          <div>
+            <div class="stat-val" id="stat-conf">—</div>
+            <div class="stat-label" data-i18n="Avg Confidence">Avg Confidence</div>
+            <div class="stat-trend" id="stat-conf-label" style="color:var(--text2)" data-i18n="Lifetime">Lifetime</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(245,166,35,.12)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Recent Activity + Lock Status -->
+      <div class="grid-2">
+
+        <div class="card">
+          <div class="card-title">
+            <span class="card-title-text">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              <span data-i18n="Recent Activity">Recent Activity</span>
+            </span>
+            <span style="font-size:11px;color:var(--accent);cursor:pointer" onclick="navigate('log')" data-i18n="View all">View all</span>
+          </div>
+          <div id="dash-log-list">
+            <div class="log-empty" data-i18n="No activity yet">No activity yet</div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Lock Status Widget -->
+          <div class="card">
+            <div class="card-title">
+              <span class="card-title-text">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span data-i18n="Door Status">Door Status</span>
+              </span>
+            </div>
+            <div class="lock-display">
+              <div class="lock-icon-wrap" id="lock-icon-wrap">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="lock-svg">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  <circle cx="12" cy="16" r="1"/>
+                </svg>
+              </div>
+              <div class="lock-state-text" id="lock-state-text" data-i18n="LOCKED">LOCKED</div>
+              <div class="lock-time" id="lock-time">--:--:--</div>
+            </div>
+          </div>
+
+          <!-- System Info -->
+          <div class="card">
+            <div class="card-title">
+              <span class="card-title-text">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <span data-i18n="System Info">System Info</span>
+              </span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="AI Model">AI Model</span>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--accent)" id="si-model">Loading...</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="Detection Interval">Detection Interval</span>
+                <span class="settings-val" id="si-interval">1000ms</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="Match Threshold">Match Threshold</span>
+                <span class="settings-val" id="si-threshold">0.60</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="Camera">Camera</span>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text2)" id="si-camera">Front</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="Uptime">Uptime</span>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text2)" id="si-uptime">00:00:00</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: SCANNER ===== -->
+    <div class="page" id="page-scanner">
+
+      <!-- Camera Select Bar -->
+      <div class="cam-select-bar">
+        <select class="cam-dropdown" id="cam-source-select" onchange="switchCameraSource(this.value)">
+          <option value="user">Default — Front Camera</option>
+        </select>
+        <div class="cam-mode-toggle">
+          <button class="cam-mode-btn active" id="cam-mode-single" onclick="setCameraMode('single')">Single</button>
+          <button class="cam-mode-btn" id="cam-mode-multi" onclick="setCameraMode('multiple')">Multiple</button>
+        </div>
+        <button onclick="openQRPairingModal()" style="background:var(--accent);color:#fff;border:none;padding:7px 14px;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3z"/><path d="M20 14v3h-3"/><path d="M14 20h3"/><path d="M20 20h0"/></svg>
+          <span data-i18n="Pair via QR">Pair via QR</span>
+        </button>
+      </div>
+
+      <div class="scanner-layout">
+
+        <!-- Camera Feed -->
+        <div class="card" style="padding:16px">
+          <div class="card-title">
+            <span class="card-title-text">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+              <span data-i18n="Live Camera Feed">Live Camera Feed</span>
+            </span>
+            <span class="badge badge-info" id="fps-badge">30 FPS</span>
+          </div>
+          <div class="video-wrap" id="video-wrap">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="overlay-canvas"></canvas>
+            <div class="scan-line" id="scan-line"></div>
+            <div class="corner corner-tl"></div>
+            <div class="corner corner-tr"></div>
+            <div class="corner corner-bl"></div>
+            <div class="corner corner-br"></div>
+            <div class="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </div>
+            <div class="video-overlay-info">
+              <span class="cam-label" id="cam-label" data-i18n="CAM-01 / FRONT">CAM-01 / FRONT</span>
+              <div class="cam-controls">
+                <div class="cam-btn" onclick="swapCamera()" title="Flip Camera">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+                </div>
+                <div class="cam-btn" title="Snapshot" onclick="takeSnapshot()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Multi-Camera Grid (shown in Multiple mode) -->
+          <div class="multi-cam-grid grid-1" id="multi-cam-grid" style="display:none"></div>
+          <!-- Connected Devices -->
+          <div class="devices-panel" id="devices-panel" style="display:none">
+            <div class="section-label" data-i18n="Connected Devices">Connected Devices</div>
+            <div id="devices-list"><div style="font-size:12px;color:var(--text3);padding:8px 0" data-i18n="No paired devices">No paired devices</div></div>
+          </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="recog-panel">
+
+          <!-- Status -->
+          <div class="status-card">
+            <div class="status-indicator">
+              <div class="status-led" id="status-led"></div>
+              <div>
+                <div class="status-label" id="status-label" data-i18n="Initializing...">Initializing...</div>
+                <div class="status-sub" id="status-sub" data-i18n="Please wait">Please wait</div>
+              </div>
+            </div>
+
+            <!-- Confidence Meter -->
+            <div class="conf-meter" id="conf-meter" style="display:none">
+              <div class="conf-label">
+                <span data-i18n="Match Confidence">Match Confidence</span>
+                <span id="conf-val">0%</span>
+              </div>
+              <div class="conf-bar">
+                <div class="conf-fill" id="conf-fill"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detected Face Card -->
+          <div class="face-result" id="face-result">
+            <div class="face-avatar" id="face-avatar">?</div>
+            <div>
+              <div class="face-name" id="face-name" data-i18n="Awaiting Detection">Awaiting Detection</div>
+              <div class="face-meta" id="face-meta">—</div>
+            </div>
+          </div>
+
+          <!-- Lock Display -->
+          <div class="lock-display" style="padding:16px">
+            <div class="lock-icon-wrap" id="lock-icon-wrap2" style="width:52px;height:52px;margin-bottom:10px">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" id="lock-svg2">
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                <circle cx="12" cy="16" r="1"/>
+              </svg>
+            </div>
+            <div class="lock-state-text" id="lock-state-text2" data-i18n="LOCKED">LOCKED</div>
+            <div class="lock-time" id="lock-time2">--:--:--</div>
+          </div>
+
+          <!-- Actions -->
+          <button class="open-btn" id="btn-manual-lock-scanner" onclick="manualOpen()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span data-i18n="Manual Unlock">Manual Unlock</span>
+          </button>
+          <button class="open-btn open-btn-outline" onclick="navigate('database')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
+            <span data-i18n="Enroll New Face">Enroll New Face</span>
+          </button>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: ACCESS LOG ===== -->
+    <div class="page" id="page-log">
+      <div class="card">
+        <div class="card-title">
+          <span class="card-title-text">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span data-i18n="Access Log">Access Log</span>
+          </span>
+          <button onclick="clearLog()" style="background:none;border:none;color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)" data-i18n="Clear All">Clear All</button>
+        </div>
+
+        <!-- Filter Bar -->
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <select class="settings-select" id="log-filter" onchange="renderLog()">
+            <option value="all" data-i18n="All Events">All Events</option>
+            <option value="granted" data-i18n="Granted Only">Granted Only</option>
+            <option value="denied" data-i18n="Denied Only">Denied Only</option>
+          </select>
+          <select class="settings-select" id="log-sort" onchange="renderLog()">
+            <option value="newest" data-i18n="Newest First">Newest First</option>
+            <option value="oldest" data-i18n="Oldest First">Oldest First</option>
+          </select>
+          <input class="form-input" style="max-width:200px;padding:7px 12px;font-size:12px" placeholder="Search name..." data-i18n="Search name..." id="log-search" oninput="renderLog()">
+        </div>
+
+        <div style="overflow-x:auto">
+          <table class="log-table" id="log-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th data-i18n="Name">Name</th>
+                <th data-i18n="Result">Result</th>
+                <th data-i18n="Confidence">Confidence</th>
+                <th data-i18n="Time">Time</th>
+                <th data-i18n="Action">Action</th>
+              </tr>
+            </thead>
+            <tbody id="log-body">
+              <tr><td colspan="6" class="log-empty" data-i18n="No access events recorded">No access events recorded</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
+          <span style="font-size:12px;color:var(--text2)" id="log-count">0 records</span>
+          <button onclick="exportLog()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-i18n="Export CSV">Export CSV</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: DATABASE ===== -->
+    <div class="page" id="page-database">
+      <div class="db-layout">
+
+        <!-- Enrollment Form -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card">
+            <div class="card-title">
+              <span class="card-title-text">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                <span data-i18n="Enroll New User">Enroll New User</span>
+              </span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" data-i18n="Full Name">Full Name</label>
+              <input class="form-input" type="text" id="reg-name" placeholder="e.g. Budi Santoso">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" data-i18n="Role / Label">Role / Label</label>
+              <select class="form-input" id="reg-role">
+                <option value="Owner" data-i18n="Owner">Owner</option>
+                <option value="Resident" data-i18n="Resident">Resident</option>
+                <option value="Staff" data-i18n="Staff">Staff</option>
+                <option value="Guest" data-i18n="Guest">Guest</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" data-i18n="Face Photo">Face Photo</label>
+              <div class="file-drop" id="file-drop">
+                <input type="file" id="reg-file" accept="image/*" onchange="previewFile(this)">
+                <div class="file-drop-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </div>
+                <div class="file-drop-text" data-i18n="Upload photo from gallery">Upload photo from gallery</div>
+                <div class="file-drop-sub" data-i18n="JPG, PNG — Clear front-facing portrait">JPG, PNG — Clear front-facing portrait</div>
+              </div>
+              <div class="file-preview" id="file-preview">
+                <img id="preview-img" src="" alt="">
+                <div>
+                  <div class="file-preview-name" id="preview-name">—</div>
+                  <div class="file-preview-size" id="preview-size">—</div>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn-submit" id="btn-register" onclick="registerFace()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+              <span data-i18n="Register Face">Register Face</span>
+            </button>
+          </div>
+
+          <!-- DB Stats -->
+          <div class="card">
+            <div class="card-title"><span class="card-title-text" data-i18n="Database Stats">Database Stats</span></div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="Total Users">Total Users</span>
+                <span class="settings-val" id="db-count">0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="Owners">Owners</span>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text2)" id="db-owners">0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="Residents">Residents</span>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text2)" id="db-residents">0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12.5px">
+                <span style="color:var(--text2)" data-i18n="Staff / Guests">Staff / Guests</span>
+                <span style="font-family:var(--mono);font-size:11px;color:var(--text2)" id="db-guests">0</span>
+              </div>
+              <div class="divider" style="margin:8px 0"></div>
+              <button onclick="clearDatabase()" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--danger);padding:9px;border-radius:8px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                <span data-i18n="Clear All Faces">Clear All Faces</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- User Grid -->
+        <div class="card">
+          <div class="card-title">
+            <span class="card-title-text">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              <span data-i18n="Enrolled Users">Enrolled Users</span>
+            </span>
+            <input class="form-input" style="max-width:180px;padding:6px 10px;font-size:12px" placeholder="Search..." data-i18n="Search..." id="db-search" oninput="renderDatabase()">
+          </div>
+          <div class="user-grid" id="user-grid">
+            <div style="grid-column:1/-1;text-align:center;padding:60px 0;color:var(--text3);font-size:13px" data-i18n="No users enrolled yet">
+              No users enrolled yet
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== PAGE: CNN METRICS ===== -->
+    <div class="page" id="page-cnn">
+
+      <!-- Metric Stat Tiles -->
+      <div class="grid-4">
+        <div class="stat-tile">
+          <div>
+            <div class="stat-val" id="cnn-accuracy">—</div>
+            <div class="stat-label" data-i18n="Accuracy">Accuracy</div>
+            <div class="stat-trend" style="color:var(--text2)">(TP+TN)/(TP+TN+FP+FN)</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(45,212,168,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2dd4a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        </div>
+        <div class="stat-tile">
+          <div>
+            <div class="stat-val" id="cnn-precision">—</div>
+            <div class="stat-label" data-i18n="Precision">Precision</div>
+            <div class="stat-trend" style="color:var(--text2)">TP/(TP+FP)</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(79,142,247,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f8ef7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
+        </div>
+        <div class="stat-tile">
+          <div>
+            <div class="stat-val" id="cnn-recall">—</div>
+            <div class="stat-label" data-i18n="Recall">Recall</div>
+            <div class="stat-trend" style="color:var(--text2)">TP/(TP+FN)</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(245,166,35,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        </div>
+        <div class="stat-tile">
+          <div>
+            <div class="stat-val" id="cnn-f1">—</div>
+            <div class="stat-label" data-i18n="F1-Score">F1-Score</div>
+            <div class="stat-trend" style="color:var(--text2)">2×(P×R)/(P+R)</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(246,92,110,.12)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f65c6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <!-- Inference Latency -->
+        <div class="card">
+          <div class="card-title"><span class="card-title-text">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span data-i18n="Inference Latency">Inference Latency</span>
+          </span></div>
+          <div class="sparkline-wrap"><canvas id="latency-sparkline"></canvas></div>
+          <div class="latency-grid">
+            <div class="latency-item"><div class="latency-val" id="lat-avg">—</div><div class="latency-label">AVG (ms)</div></div>
+            <div class="latency-item"><div class="latency-val" id="lat-min">—</div><div class="latency-label">MIN (ms)</div></div>
+            <div class="latency-item"><div class="latency-val" id="lat-max">—</div><div class="latency-label">MAX (ms)</div></div>
+            <div class="latency-item"><div class="latency-val" id="lat-fps">—</div><div class="latency-label">DET/s</div></div>
+          </div>
+        </div>
+
+        <!-- Confusion Matrix -->
+        <div class="card">
+          <div class="card-title"><span class="card-title-text">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span data-i18n="Confusion Matrix">Confusion Matrix</span>
+          </span></div>
+          <div class="confusion-matrix">
+            <div class="cm-header"></div>
+            <div class="cm-header" data-i18n="Predicted Positive">Pred. Positive</div>
+            <div class="cm-header" data-i18n="Predicted Negative">Pred. Negative</div>
+            <div class="cm-header" style="writing-mode:vertical-lr;transform:rotate(180deg)" data-i18n="Actual Positive">Actual +</div>
+            <div class="cm-cell cm-tp"><span class="cm-val" id="cm-tp">0</span><span class="cm-label">TP</span></div>
+            <div class="cm-cell cm-fn"><span class="cm-val" id="cm-fn">0</span><span class="cm-label">FN</span></div>
+            <div class="cm-header" style="writing-mode:vertical-lr;transform:rotate(180deg)" data-i18n="Actual Negative">Actual −</div>
+            <div class="cm-cell cm-fp"><span class="cm-val" id="cm-fp">0</span><span class="cm-label">FP</span></div>
+            <div class="cm-cell cm-tn"><span class="cm-val" id="cm-tn">0</span><span class="cm-label">TN</span></div>
+          </div>
+          <div style="text-align:center;margin-top:12px;font-size:11px;color:var(--text3)" id="cm-total">Total Samples: 0</div>
+        </div>
+      </div>
+
+      <!-- Formulas -->
+      <div class="card">
+        <div class="card-title"><span class="card-title-text">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <span data-i18n="Computation Details">Computation Details</span>
+        </span></div>
+        <div class="grid-2" style="margin-bottom:0">
+          <div class="metric-formula">
+            <span class="formula-label">Accuracy</span>
+            Accuracy = (TP + TN) / (TP + TN + FP + FN)<br>
+            = (<span class="formula-val" id="f-tp1">0</span> + <span class="formula-val" id="f-tn1">0</span>) / (<span class="formula-val" id="f-total1">0</span>)<br>
+            = <span class="formula-val" id="f-acc">0.00%</span>
+          </div>
+          <div class="metric-formula">
+            <span class="formula-label">Precision</span>
+            Precision = TP / (TP + FP)<br>
+            = <span class="formula-val" id="f-tp2">0</span> / (<span class="formula-val" id="f-tp2b">0</span> + <span class="formula-val" id="f-fp2">0</span>)<br>
+            = <span class="formula-val" id="f-prec">0.00%</span>
+          </div>
+          <div class="metric-formula">
+            <span class="formula-label">Recall (Sensitivity)</span>
+            Recall = TP / (TP + FN)<br>
+            = <span class="formula-val" id="f-tp3">0</span> / (<span class="formula-val" id="f-tp3b">0</span> + <span class="formula-val" id="f-fn3">0</span>)<br>
+            = <span class="formula-val" id="f-recall">0.00%</span>
+          </div>
+          <div class="metric-formula">
+            <span class="formula-label">F1-Score (Harmonic Mean)</span>
+            F1 = 2 × (Precision × Recall) / (Precision + Recall)<br>
+            = 2 × (<span class="formula-val" id="f-p4">0</span> × <span class="formula-val" id="f-r4">0</span>) / (<span class="formula-val" id="f-pr4">0</span>)<br>
+            = <span class="formula-val" id="f-f1">0.00%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: WHATSAPP ===== -->
+    <div class="page" id="page-whatsapp">
+      <div class="grid-2">
+
+        <!-- Connection & Mode -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <!-- Status -->
+          <div class="card">
+            <div class="card-title"><span class="card-title-text">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              <span data-i18n="WPPConnect Status">WPPConnect Status</span>
+            </span></div>
+            <div class="wa-status-bar">
+              <div class="wa-status-dot offline" id="wa-status-dot"></div>
+              <div>
+                <div style="font-size:13px;font-weight:600" id="wa-status-text" data-i18n="Disconnected">Disconnected</div>
+                <div style="font-size:11px;color:var(--text3);font-family:var(--mono)" id="wa-session-info">Session: default</div>
+              </div>
+            </div>
+            <button onclick="checkWAConnection()" class="btn-submit" style="padding:10px;font-size:12px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/></svg>
+              <span data-i18n="Check Connection">Check Connection</span>
+            </button>
+          </div>
+
+          <!-- Mode Toggle -->
+          <div class="card">
+            <div class="card-title"><span class="card-title-text" data-i18n="Notification Mode">Notification Mode</span></div>
+            <div class="wa-mode-switch">
+              <button class="wa-mode-btn active" id="wa-mode-auto" onclick="setWAMode('auto')" data-i18n="Auto">⚡ Auto</button>
+              <button class="wa-mode-btn" id="wa-mode-manual" onclick="setWAMode('manual')" data-i18n="Manual">✋ Manual</button>
+            </div>
+            <div style="font-size:12px;color:var(--text2);line-height:1.6" id="wa-mode-desc" data-i18n="Auto mode sends notifications in real-time for every access event.">Auto mode sends notifications in real-time for every access event.</div>
+
+            <!-- Security Override Banner -->
+            <div class="wa-override-banner">
+              <div class="wa-override-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f65c6e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+              <div>
+                <div style="font-size:12px;font-weight:600;color:var(--danger)" data-i18n="Security Override: ACTIVE">Security Override: ACTIVE</div>
+                <div style="font-size:11px;color:var(--text2)" data-i18n="Denied access alerts always sent, even in Manual mode">Denied access alerts always sent, even in Manual mode</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Manual Export -->
+          <div class="card" id="wa-manual-panel">
+            <div class="card-title"><span class="card-title-text" data-i18n="Bulk Export to WhatsApp">Bulk Export to WhatsApp</span></div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="Date Range">Date Range</label>
+              <div style="display:flex;gap:8px">
+                <input type="date" class="form-input" id="wa-export-from" style="font-size:12px">
+                <input type="date" class="form-input" id="wa-export-to" style="font-size:12px">
+              </div>
+            </div>
+            <button onclick="bulkExportToWA()" class="btn-submit" style="padding:10px;font-size:12px;background:rgb(37,211,102)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span data-i18n="Send Logs to WhatsApp">Send Logs to WhatsApp</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Target Numbers & Preview -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <!-- Target Numbers -->
+          <div class="card">
+            <div class="card-title"><span class="card-title-text" data-i18n="Target Phone Numbers">Target Phone Numbers</span></div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <input class="form-input" type="tel" id="wa-new-phone" placeholder="e.g. 6281234567890" style="flex:1;font-size:12px;padding:8px 12px">
+              <button onclick="addWAPhone()" style="background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap" data-i18n="Add">+ Add</button>
+            </div>
+            <div id="wa-phone-list" style="display:flex;flex-wrap:wrap;gap:2px">
+              <div style="font-size:12px;color:var(--text3);padding:8px" data-i18n="No target numbers configured">No target numbers configured</div>
+            </div>
+          </div>
+
+          <!-- Message Preview -->
+          <div class="card">
+            <div class="card-title"><span class="card-title-text" data-i18n="Alert Preview">Alert Preview</span></div>
+            <div class="section-label" data-i18n="Denied Access Alert Format">Denied Access Alert Format</div>
+            <div class="wa-preview-box">🚨 <b>SmartLock Security Alert</b>
+
+⛔ <b>ACCESS DENIED</b>
+📅 Date: 2026-06-01 14:00:00
+👤 Face: Unknown / Not in Database
+🔒 Door Status: LOCKED
+📊 Confidence: 42%
+
+⚠️ Unauthorized access attempt detected.
+📸 Snapshot attached below.
+            </div>
+            <button onclick="sendTestWAMessage()" style="margin-top:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:9px 16px;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              <span data-i18n="Send Test Message">Send Test Message</span>
+            </button>
+          </div>
+
+          <!-- WPPConnect Settings -->
+          <div class="card">
+            <div class="card-title"><span class="card-title-text" data-i18n="WPPConnect Settings">WPPConnect Settings</span></div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="API Base URL">API Base URL</label>
+              <input class="form-input" id="wa-api-url" value="http://localhost:21465" style="font-size:12px" onchange="saveWASettings()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="Session Name">Session Name</label>
+              <input class="form-input" id="wa-session" value="default" style="font-size:12px" onchange="saveWASettings()">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label" data-i18n="Secret Key">Secret Key</label>
+              <input class="form-input" type="password" id="wa-secret" placeholder="Your WPPConnect secret key" style="font-size:12px" onchange="saveWASettings()">
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ===== PAGE: SETTINGS ===== -->
+    <div class="page" id="page-settings">
+      <div class="grid-2">
+
+        <div class="card">
+          <div class="card-title"><span class="card-title-text" data-i18n="Appearance">Appearance</span></div>
+          <div class="settings-list">
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Language">Language</div>
+                <div class="settings-desc" data-i18n="Choose display language">Choose display language</div>
+              </div>
+              <select class="settings-select" id="set-language" onchange="applySettings()">
+                <option value="en">English</option>
+                <option value="id">Bahasa Indonesia</option>
+              </select>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Dark Mode">Dark Mode</div>
+                <div class="settings-desc" data-i18n="Switch to dark theme">Switch to dark theme</div>
+              </div>
+              <div class="toggle" id="tog-darkmode" onclick="toggleSetting('darkmode')"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-title-text" data-i18n="Recognition Engine">Recognition Engine</span></div>
+          <div class="settings-list">
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Detection Interval">Detection Interval</div>
+                <div class="settings-desc" data-i18n="How often to scan for faces (ms)">How often to scan for faces (ms)</div>
+              </div>
+              <select class="settings-select" id="set-interval" onchange="applySettings()">
+                <option value="500">500ms</option>
+                <option value="1000">1000ms</option>
+                <option value="1500">1500ms</option>
+                <option value="2000">2000ms</option>
+              </select>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Match Threshold">Match Threshold</div>
+                <div class="settings-desc" data-i18n="Lower = stricter matching">Lower = stricter matching</div>
+              </div>
+              <select class="settings-select" id="set-threshold" onchange="applySettings()">
+                <option value="0.45" data-i18n="Strict">0.45 — Strict</option>
+                <option value="0.55" data-i18n="Normal">0.55 — Normal</option>
+                <option value="0.60" data-i18n="Balanced">0.60 — Balanced</option>
+                <option value="0.70" data-i18n="Lenient">0.70 — Lenient</option>
+              </select>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Face Detector">Face Detector</div>
+                <div class="settings-desc" data-i18n="Detection algorithm">Detection algorithm</div>
+              </div>
+              <select class="settings-select" id="set-detector" onchange="applySettings()">
+                <option value="tiny" data-i18n="Tiny (Fast)">Tiny (Fast)</option>
+                <option value="ssd" data-i18n="SSD (Accurate)">SSD (Accurate)</option>
+              </select>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Draw Landmarks">Draw Landmarks</div>
+                <div class="settings-desc" data-i18n="Show face mesh overlay">Show face mesh overlay</div>
+              </div>
+              <div class="toggle" id="tog-landmarks" onclick="toggleSetting('landmarks')"></div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Draw Bounding Box">Draw Bounding Box</div>
+                <div class="settings-desc" data-i18n="Show detection rectangle">Show detection rectangle</div>
+              </div>
+              <div class="toggle" id="tog-bbox" onclick="toggleSetting('bbox')"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-title-text" data-i18n="Access Control">Access Control</span></div>
+          <div class="settings-list">
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Auto-Lock Delay">Auto-Lock Delay</div>
+                <div class="settings-desc" data-i18n="Seconds door stays unlocked">Seconds door stays unlocked</div>
+              </div>
+              <select class="settings-select" id="set-lockdelay" onchange="applySettings()">
+                <option value="3">3s</option>
+                <option value="5">5s</option>
+                <option value="10">10s</option>
+                <option value="30">30s</option>
+              </select>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Buzzer on Access">Buzzer on Access</div>
+                <div class="settings-desc" data-i18n="Beep when door opens">Beep when door opens</div>
+              </div>
+              <div class="toggle" id="tog-buzzer" onclick="toggleSetting('buzzer')"></div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Log Denied Attempts">Log Denied Attempts</div>
+                <div class="settings-desc" data-i18n="Record unknown faces in log">Record unknown faces in log</div>
+              </div>
+              <div class="toggle" id="tog-logdenied" onclick="toggleSetting('logdenied')"></div>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Greeting Animation">Greeting Animation</div>
+                <div class="settings-desc" data-i18n="Show name when recognized">Show name when recognized</div>
+              </div>
+              <div class="toggle" id="tog-greeting" onclick="toggleSetting('greeting')"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-title-text" data-i18n="Network">Network</span></div>
+          <div class="settings-list">
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="ESP32 IP Address">ESP32 IP Address</div>
+                <div class="settings-desc" data-i18n="Device endpoint">Device endpoint</div>
+              </div>
+              <input class="settings-select form-input" id="set-ip" value="192.168.4.1" style="max-width:150px;padding:6px 10px;font-size:12px" onchange="applySettings()">
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Connection Mode">Connection Mode</div>
+                <div class="settings-desc" data-i18n="How to reach the device">How to reach the device</div>
+              </div>
+              <select class="settings-select" id="set-mode">
+                <option value="wifi" data-i18n="Wi-Fi AP">Wi-Fi AP</option>
+                <option value="lan" data-i18n="LAN">LAN</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="card-title-text" data-i18n="Data Management">Data Management</span></div>
+          <div class="settings-list">
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Export Database">Export Database</div>
+                <div class="settings-desc" data-i18n="Download face encodings as JSON">Download face encodings as JSON</div>
+              </div>
+              <button onclick="exportDatabase()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer" data-i18n="Export">Export</button>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Import Database">Import Database</div>
+                <div class="settings-desc" data-i18n="Restore from JSON backup">Restore from JSON backup</div>
+              </div>
+              <label style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;position:relative">
+                <span data-i18n="Import">Import</span>
+                <input type="file" accept=".json" style="position:absolute;inset:0;opacity:0;cursor:pointer" onchange="importDatabase(this)">
+              </label>
+            </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <div class="settings-name" data-i18n="Clear Access Log">Clear Access Log</div>
+                <div class="settings-desc" data-i18n="Delete all recorded events">Delete all recorded events</div>
+              </div>
+              <button onclick="clearLog()" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--danger);padding:7px 14px;border-radius:7px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer" data-i18n="Clear">Clear</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div><!-- end .content -->
+</div><!-- end .main -->
+
+<!-- ========== TOAST ========== -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- ========== MODAL ========== -->
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title" data-i18n="Confirm">Confirm</div>
+      <div class="modal-close" onclick="closeModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </div>
+    </div>
+    <div id="modal-body"></div>
+    <div id="modal-footer" style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end"></div>
+  </div>
+</div>
+
+<!-- ========== RECOGNITION DIALOGS ========== -->
+<div class="recog-dialog" id="recog-dialog-granted">
+  <div class="recog-dialog-card">
+    <div class="recog-dialog-icon granted">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    </div>
+    <div class="recog-dialog-title" style="color:var(--success)" data-i18n="Access Granted">Access Granted</div>
+    <div class="recog-dialog-msg" id="recog-granted-msg" data-i18n="You are registered in the database">You are registered in the database</div>
+    <div style="margin-top:16px;font-family:var(--mono);font-size:12px;color:var(--text3)" id="recog-granted-name"></div>
+  </div>
+</div>
+
+<div class="recog-dialog" id="recog-dialog-denied">
+  <div class="recog-dialog-card">
+    <div class="recog-dialog-icon denied">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    </div>
+    <div class="recog-dialog-title" style="color:var(--danger)" data-i18n="Access Denied">Access Denied</div>
+    <div class="recog-dialog-msg" data-i18n="Face not recognized in the database">Face not recognized in the database</div>
+    <div style="margin-top:12px;font-size:11px;color:var(--text3)" data-i18n="Scanning will continue automatically...">Scanning will continue automatically...</div>
+    <div class="spinner" style="width:20px;height:20px;border-width:2px;margin:12px auto 0"></div>
+  </div>
+</div>
+
+<!-- ========== JAVASCRIPT ========== -->
+<script>
+// ======================================================
+// LOCALIZATION (i18n) DICTIONARY
+// ======================================================
+const i18nDict = {
+  id: {
+    "Face Recognition": "Pengenalan Wajah", "Monitoring": "Pemantauan", "Dashboard": "Dasbor", "Live Scanner": "Pemindai Langsung",
+    "Access Log": "Log Akses", "Management": "Manajemen", "Face Database": "Basis Data Wajah", "Settings": "Pengaturan",
+    "System Online": "Sistem Aktif", "AI Ready": "AI Siap", "Loading AI...": "Memuat AI...", "Locked": "Terkunci", "Unlocked": "Terbuka",
+    "LOCKED": "TERKUNCI", "UNLOCKED": "TERBUKA", "Registered Users": "Pengguna Terdaftar", "Access Granted": "Akses Diberikan",
+    "Access Denied": "Akses Ditolak", "Avg Confidence": "Rata-rata Akurasi", "Today": "Hari Ini", "Lifetime": "Seumur Hidup",
+    "Recent Activity": "Aktivitas Terbaru", "View all": "Lihat semua", "No activity yet": "Belum ada aktivitas", "Door Status": "Status Pintu",
+    "System Info": "Info Sistem", "AI Model": "Model AI", "Detection Interval": "Interval Deteksi", "Match Threshold": "Batas Kecocokan",
+    "Camera": "Kamera", "Uptime": "Waktu Aktif", "Live Camera Feed": "Kamera Langsung", "CAM-01 / FRONT": "KAMERA-01 / DEPAN",
+    "CAM-01 / REAR": "KAMERA-01 / BELAKANG", "Initializing...": "Memulai...", "Please wait": "Mohon tunggu",
+    "Match Confidence": "Tingkat Kecocokan", "Awaiting Detection": "Menunggu Deteksi", "Manual Unlock": "Buka Manual",
+    "Enroll New Face": "Daftar Wajah Baru", "Clear All": "Hapus Semua", "All Events": "Semua Kejadian", "Granted Only": "Hanya Diberikan",
+    "Denied Only": "Hanya Ditolak", "Newest First": "Terbaru", "Oldest First": "Terlama", "Search name...": "Cari nama...",
+    "Name": "Nama", "Result": "Hasil", "Confidence": "Akurasi", "Time": "Waktu", "Action": "Aksi", "No access events recorded": "Tidak ada log akses",
+    "Export CSV": "Ekspor CSV", "Enroll New User": "Daftar Pengguna Baru", "Full Name": "Nama Lengkap", "Role / Label": "Peran / Label",
+    "Face Photo": "Foto Wajah", "Upload photo from gallery": "Unggah foto dari galeri", "JPG, PNG — Clear front-facing portrait": "JPG, PNG — Foto depan yang jelas",
+    "Register Face": "Daftarkan Wajah", "Database Stats": "Statistik Database", "Total Users": "Total Pengguna", "Owners": "Pemilik",
+    "Residents": "Penghuni", "Staff / Guests": "Staf / Tamu", "Clear All Faces": "Hapus Semua Wajah", "Enrolled Users": "Pengguna Terdaftar",
+    "Search...": "Cari...", "No users enrolled yet": "Belum ada pengguna", "Delete": "Hapus", "Recognition Engine": "Mesin Pengenal",
+    "How often to scan for faces (ms)": "Seberapa sering memindai wajah (md)", "Lower = stricter matching": "Lebih rendah = lebih ketat",
+    "Face Detector": "Pendeteksi Wajah", "Detection algorithm": "Algoritma deteksi", "Draw Landmarks": "Gambar Titik Wajah",
+    "Show face mesh overlay": "Tampilkan jaring wajah", "Draw Bounding Box": "Gambar Kotak Wajah", "Show detection rectangle": "Tampilkan kotak deteksi",
+    "Access Control": "Kontrol Akses", "Auto-Lock Delay": "Jeda Kunci Otomatis", "Seconds door stays unlocked": "Lama pintu terbuka (detik)",
+    "Buzzer on Access": "Bel Saat Akses", "Beep when door opens": "Bunyi bip saat pintu terbuka", "Log Denied Attempts": "Catat Akses Ditolak",
+    "Record unknown faces in log": "Catat wajah tak dikenal di log", "Greeting Animation": "Animasi Sapaan", "Show name when recognized": "Tampilkan nama saat dikenali",
+    "Appearance": "Tampilan", "Dark Mode": "Mode Gelap", "Switch to dark theme": "Ganti ke tema gelap", "Language": "Bahasa",
+    "Choose display language": "Pilih bahasa tampilan", "Network": "Jaringan", "ESP32 IP Address": "Alamat IP ESP32",
+    "Device endpoint": "Titik akhir perangkat", "Connection Mode": "Mode Koneksi", "How to reach the device": "Cara terhubung ke perangkat",
+    "Data Management": "Manajemen Data", "Export Database": "Ekspor Database", "Download face encodings as JSON": "Unduh data wajah (JSON)",
+    "Import Database": "Impor Database", "Restore from JSON backup": "Pulihkan dari file JSON", "Clear Access Log": "Hapus Log Akses",
+    "Delete all recorded events": "Hapus semua catatan akses", "Export": "Ekspor", "Import": "Impor", "Clear": "Hapus", "Owner": "Pemilik",
+    "Resident": "Penghuni", "Staff": "Staf", "Guest": "Tamu", "Wi-Fi AP": "AP Wi-Fi", "LAN": "LAN", "Tiny (Fast)": "Kecil (Cepat)",
+    "SSD (Accurate)": "SSD (Akurat)", "Strict": "Ketat", "Normal": "Normal", "Balanced": "Seimbang", "Lenient": "Longgar",
+    "Granted": "Diberikan", "Denied": "Ditolak", "Remove": "Hapus", "records": "catatan", "record": "catatan",
+    "Log Cleared": "Log Dihapus", "All access events removed": "Semua catatan akses dihapus", "User Removed": "Pengguna Dihapus",
+    "deleted from database": "dihapus dari database", "Database Cleared": "Database Dihapus", "All users removed": "Semua pengguna dihapus",
+    "Validation Error": "Kesalahan Validasi", "Please enter a full name": "Silakan masukkan nama lengkap", "Please select a photo": "Silakan pilih foto",
+    "Duplicate": "Duplikat", "User already exists": "Pengguna sudah ada", "Enrolled": "Terdaftar", "registered successfully": "berhasil didaftarkan",
+    "No Face Detected": "Wajah Tidak Terdeteksi", "Try a clearer, well-lit photo": "Coba foto yang lebih jelas", "Error": "Kesalahan",
+    "Unknown error": "Kesalahan tidak diketahui", "Exported": "Diekspor", "Database saved as JSON": "Database disimpan sebagai JSON",
+    "Imported": "Diimpor", "users loaded": "pengguna dimuat", "Import Failed": "Gagal Impor", "Invalid JSON file": "File JSON tidak valid",
+    "Snapshot Saved": "Jepretan Disimpan", "Image downloaded": "Gambar diunduh", "Confirm": "Konfirmasi", "Cancel": "Batal",
+    "Are you sure you want to delete all enrolled faces? This cannot be undone.": "Yakin ingin menghapus semua wajah? Ini tidak dapat dibatalkan.",
+    "Delete All": "Hapus Semua", "Camera Error": "Kesalahan Kamera", "Could not access camera": "Tidak dapat mengakses kamera",
+    "Scanning...": "Memindai...", "No face detected": "Tidak ada wajah", "Welcome, ": "Selamat datang, ", "AI Failed to Load": "AI Gagal Dimuat",
+    "Needs internet connection": "Butuh koneksi internet", "System Ready": "Sistem Siap", "Waiting for face...": "Menunggu wajah...",
+    "Database Empty": "Database Kosong", "Enroll faces first": "Daftarkan wajah dulu", "Unknown Face": "Wajah Tidak Dikenal", "Door unlocked manually": "Pintu dibuka manual",
+    "Reset Settings": "Atur Ulang Pengaturan",
+    "Are you sure you want to reset all settings to default?": "Yakin ingin mengembalikan semua pengaturan ke nilai awal (default)?",
+    "Reset": "Atur Ulang",
+    "Settings Reset": "Pengaturan Direset",
+    "Settings have been restored to default": "Pengaturan telah dikembalikan ke bawaan pabrik",
+    "Admin Login": "Login Admin",
+    "Please enter your password": "Silakan masukkan kata sandi Anda",
+    "Username": "Nama Pengguna",
+    "Password": "Kata Sandi",
+    "Login": "Masuk",
+    "Login Success": "Login Berhasil",
+    "Welcome Admin": "Selamat datang, Admin",
+    "Login Failed": "Login Gagal",
+    "Wrong password": "Kata sandi salah"
+  }
+};
+
+const defaultSettings = {
+  interval: 1000, threshold: 0.60, detector: 'tiny', landmarks: false, bbox: true,
+  buzzer: true, logdenied: true, greeting: true, lockdelay: 5, ip: '192.168.4.1',
+  darkmode: false, language: 'en'
+};
+
+let settings = { ...defaultSettings };
+
+function t(key) {
+  if(settings.language === 'id' && i18nDict.id[key]) return i18nDict.id[key];
+  return key;
+}
+
+// STATE
+let labeledFaceDescriptors = [];
+let faceMatcher = null;
+let modelsLoaded = false;
+let currentFacingMode = "user";
+let recognitionTimer = null;
+let accessLog = [];
+let lockOpen = false;
+let lockTimer = null;
+let startTime = Date.now();
+let statGranted = 0, statDenied = 0;
+let confHistory = [];
+let currentTab = 'dashboard';
+
+// ======================================================
+// LOGIN SYSTEM
+// ======================================================
+function togglePassword() {
+  const input = document.getElementById('login-password');
+  const icon = document.getElementById('eye-icon-svg');
+  if (input.type === 'password') {
+    input.type = 'text';
+    // Eye off (garis dicoret)
+    icon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`;
+  } else {
+    input.type = 'password';
+    // Eye on (terbuka)
+    icon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+  }
+}
+
+async function attemptLogin() {
+  const pass = document.getElementById('login-password').value;
+  if (pass === 'vikri_3162') {
+    showToast('success', t('Login Success'), t('Welcome Admin'));
+    document.getElementById('login-screen').classList.add('hidden');
+    
+    // Perbarui Dasbor lalu inisialisasi AI (akses kamera)
+    updateDashboard();
+    try { 
+      await initAI(); 
+    } catch(e) { 
+      setStatus('error', t('AI Failed to Load'), t('Needs internet connection')); 
+    }
+  } else {
+    showToast('danger', t('Login Failed'), t('Wrong password'));
+  }
+}
+
+// ======================================================
+// NAVIGATION
+// ======================================================
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
+}
+
+function navigate(tab, silent=false){
+  currentTab = tab;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  
+  let activeTitle = tab;
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    if(n.getAttribute('onclick').includes(`('${tab}')`)) {
+      n.classList.add('active');
+      activeTitle = n.querySelector('[data-i18n]').getAttribute('data-i18n');
+    }
+  });
+  
+  document.getElementById('topbar-title').textContent = t(activeTitle);
+  
+  if(!silent){
+    if(tab==='scanner' && modelsLoaded) {
+      const vid = document.getElementById('video');
+      if(!vid.srcObject) startCamera();
+    }
+    if(tab==='database') renderDatabase();
+    if(tab==='log') renderLog();
+    if(tab==='dashboard') updateDashboard();
+    if(window.innerWidth <= 900) closeSidebar();
+  }
+}
+
+// ======================================================
+// INIT
+// ======================================================
+window.onload = () => {
+  loadStoredData();
+  applySettingsInputs();
+  applySettings();
+  
+  // Waktu dan uptime mulai berjalan, namun inisialisasi kamera dan AI 
+  // akan ditunda hingga pengguna berhasil Login (di attemptLogin)
+  setInterval(updateTime, 1000);
+  setInterval(updateUptime, 1000);
+};
+
+async function initAI(){
+  const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+  setStatus('warn', t('Loading AI...'), t('Please wait'));
+  document.getElementById('ai-badge').textContent = t('Loading AI...');
+  document.getElementById('ai-badge').className = 'badge badge-warning';
+  document.getElementById('si-model').textContent = 'Loading...';
+
+  await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+  await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+  await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
+  modelsLoaded = true;
+  document.getElementById('ai-badge').textContent = t('AI Ready');
+  document.getElementById('ai-badge').className = 'badge badge-success';
+  document.getElementById('si-model').textContent = 'face-api.js v0.22';
+
+  await startCamera();
+  startRecognition();
+  setStatus('active', t('System Ready'), t('Waiting for face...'));
+}
+
+// ======================================================
+// CAMERA
+// ======================================================
+async function startCamera(){
+  const vid = document.getElementById('video');
+  if(vid.srcObject){ vid.srcObject.getTracks().forEach(tr=>tr.stop()); }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:currentFacingMode, width:{ideal:640}, height:{ideal:480} }
+    });
+    vid.srcObject = stream;
+    vid.style.transform = currentFacingMode==="user"?"scaleX(-1)":"scaleX(1)";
+    document.getElementById('cam-label').textContent = currentFacingMode==='user' ? t('CAM-01 / FRONT') : t('CAM-01 / REAR');
+    document.getElementById('si-camera').textContent = currentFacingMode==='user' ? 'Front' : 'Rear';
+  } catch(e){ showToast('danger', t('Camera Error'), t('Could not access camera')); }
+}
+
+function swapCamera(){
+  currentFacingMode = currentFacingMode==="user"?"environment":"user";
+  startCamera();
+}
+
+// ======================================================
+// RECOGNITION LOOP
+// ======================================================
+function startRecognition(){
+  if(recognitionTimer) clearInterval(recognitionTimer);
+  recognitionTimer = setInterval(runDetection, settings.interval);
+}
+
+async function runDetection(){
+  const vid = document.getElementById('video');
+  if(!modelsLoaded || !vid.videoWidth) return;
+  if(!vid.srcObject) return;
+
+  const canvas = document.getElementById('overlay-canvas');
+  const displaySize = { width:vid.offsetWidth, height:vid.offsetHeight };
+  faceapi.matchDimensions(canvas, displaySize);
+
+  let detections;
+  if(settings.detector==='ssd'){
+    detections = await faceapi.detectAllFaces(vid).withFaceLandmarks().withFaceDescriptors();
+  } else {
+    detections = await faceapi.detectAllFaces(vid, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+  }
+  const resized = faceapi.resizeResults(detections, displaySize);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if(resized.length===0){
+    setStatus('', t('Scanning...'), t('No face detected'));
+    document.getElementById('conf-meter').style.display='none';
+    setFaceResult(null,null,null);
+    document.getElementById('scan-line').classList.add('scanning');
+    return;
+  }
+
+  document.getElementById('scan-line').classList.remove('scanning');
+
+  resized.forEach(det=>{
+    if(settings.bbox){
+      const box = det.detection.box;
+      ctx.strokeStyle = '#4f8ef7';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+    }
+    if(settings.landmarks){
+      faceapi.draw.drawFaceLandmarks(canvas, det);
+    }
+
+    if(labeledFaceDescriptors.length===0){
+      setStatus('warn', t('Database Empty'), t('Enroll faces first'));
+      return;
+    }
+    const match = faceMatcher.findBestMatch(det.descriptor);
+    const conf = Math.round((1 - match.distance)*100);
+    updateConfidence(conf);
+
+    if(match.label!=='unknown'){
+      const user = labeledFaceDescriptors.find(u=>u.label===match.label);
+      setStatus('active', t('Access Granted'), t('Welcome, ')+match.label);
+      setFaceResult(match.label, conf, 'granted');
+      logAccess(match.label, conf, 'granted');
+      triggerOpen();
+
+      if(settings.bbox){
+        const box = det.detection.box;
+        ctx.strokeStyle = '#2dd4a8';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+        ctx.fillStyle = '#2dd4a8';
+        ctx.font = '600 12px DM Sans';
+        ctx.fillText(match.label+' ('+conf+'%)', box.x, box.y-6);
+      }
+    } else {
+      setStatus('error', t('Unknown Face'), t('Access Denied'));
+      setFaceResult(t('Unknown Face'), conf, 'denied');
+      if(settings.logdenied) logAccess(t('Unknown Face'), conf, 'denied');
+      if(settings.bbox){
+        const box = det.detection.box;
+        ctx.strokeStyle = '#f65c6e';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+        ctx.fillStyle = '#f65c6e';
+        ctx.font = '600 12px DM Sans';
+        ctx.fillText(t('Unknown Face'), box.x, box.y-6);
+      }
+    }
+  });
+}
+
+// ======================================================
+// STATUS / UI UPDATERS
+// ======================================================
+function setStatus(type, label, sub){
+  const led = document.getElementById('status-led');
+  led.className = 'status-led'+(type?' '+type:'');
+  document.getElementById('status-label').textContent = label;
+  document.getElementById('status-sub').textContent = sub;
+}
+
+function setFaceResult(name, conf, type){
+  const n = document.getElementById('face-name');
+  const m = document.getElementById('face-meta');
+  const a = document.getElementById('face-avatar');
+  if(!name){
+    n.textContent=t('Awaiting Detection');
+    m.textContent='—';
+    a.textContent='?';
+    a.style.color='var(--text3)';
+    return;
+  }
+  n.textContent = name;
+  m.textContent = (conf?conf+'% '+t('Confidence')+' • ':'')+new Date().toLocaleTimeString();
+  a.textContent = name.charAt(0).toUpperCase();
+  a.style.color = type==='granted'?'var(--success)':type==='denied'?'var(--danger)':'var(--accent)';
+}
+
+function updateConfidence(conf){
+  const meter = document.getElementById('conf-meter');
+  const fill = document.getElementById('conf-fill');
+  const val = document.getElementById('conf-val');
+  meter.style.display='block';
+  fill.style.width = conf+'%';
+  fill.className = 'conf-fill'+(conf>70?' ':conf>50?' mid':' low');
+  val.textContent = conf+'%';
+}
+
+// ======================================================
+// LOCK
+// ======================================================
+function triggerOpen(){
+  if(lockOpen) return;
+  lockOpen = true;
+  setLockUI(true);
+  fetch('/open').catch(()=>{});
+  if(lockTimer) clearTimeout(lockTimer);
+  lockTimer = setTimeout(()=>{
+    lockOpen = false;
+    setLockUI(false);
+  }, settings.lockdelay * 1000);
+}
+
+function manualOpen(){
+  triggerOpen();
+  showToast('info', t('Manual Unlock'), t('Door unlocked manually'));
+}
+
+function setLockUI(open){
+  const els1 = [document.getElementById('lock-icon-wrap'), document.getElementById('lock-icon-wrap2')];
+  const els2 = [document.getElementById('lock-state-text'), document.getElementById('lock-state-text2')];
+  const badge = document.getElementById('lock-badge');
+  els1.forEach(el=>{ if(el){ el.classList.toggle('unlocked',open); el.style.color=open?'var(--success)':'var(--danger)'; } });
+  els2.forEach(el=>{ if(el){ el.textContent=open?t('UNLOCKED'):t('LOCKED'); el.className='lock-state-text'+(open?' unlocked':''); } });
+  if(badge){ badge.textContent=open?t('Unlocked'):t('Locked'); badge.className='badge '+(open?'badge-success':'badge-danger'); }
+
+  // Animasi Ikon Gembok Utama
+  const bigLockSvgs = [document.getElementById('lock-svg'), document.getElementById('lock-svg2')];
+  bigLockSvgs.forEach(svg => {
+    if(svg) {
+      svg.innerHTML = open 
+        ? '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><circle cx="12" cy="16" r="1"/>'
+        : '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/>';
+    }
+  });
+
+  // Animasi Tombol Manual Topbar
+  const topBtn = document.getElementById('btn-manual-lock-top');
+  if (topBtn) {
+    topBtn.innerHTML = open 
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+    topBtn.style.color = open ? 'var(--success)' : '';
+  }
+
+  // Animasi Tombol Scanner
+  const scanBtn = document.getElementById('btn-manual-lock-scanner');
+  if (scanBtn) {
+    scanBtn.innerHTML = open
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg> <span data-i18n="Unlocked">Unlocked</span>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> <span data-i18n="Manual Unlock">Manual Unlock</span>';
+    
+    // Terapkan kembali terjemahan bahasa
+    const span = scanBtn.querySelector('[data-i18n]');
+    if (span) span.textContent = t(span.getAttribute('data-i18n'));
+    
+    if (open) {
+      scanBtn.style.background = 'var(--success)';
+      scanBtn.style.boxShadow = '0 4px 10px rgba(16,185,129,0.3)';
+    } else {
+      scanBtn.style.background = '';
+      scanBtn.style.boxShadow = '';
+    }
+  }
+}
+
+// ======================================================
+// ACCESS LOG
+// ======================================================
+let lastLogTime = 0;
+function logAccess(name, conf, result){
+  const now = Date.now();
+  if(now - lastLogTime < 3000 && result==='granted' && accessLog.length && accessLog[0].name===name) return;
+  lastLogTime = now;
+  const entry = { name, conf, result, time: new Date().toISOString(), id: now };
+  accessLog.unshift(entry);
+  if(accessLog.length > 500) accessLog.pop();
+  if(result==='granted') statGranted++;
+  else statDenied++;
+  confHistory.push(conf);
+  saveStoredData();
+  updateDashboard();
+  renderLog();
+}
+
+function renderLog(){
+  const filter = document.getElementById('log-filter')?.value||'all';
+  const sort = document.getElementById('log-sort')?.value||'newest';
+  const search = (document.getElementById('log-search')?.value||'').toLowerCase();
+  let data = [...accessLog];
+  if(filter==='granted') data=data.filter(e=>e.result==='granted');
+  if(filter==='denied') data=data.filter(e=>e.result==='denied');
+  if(search) data=data.filter(e=>e.name.toLowerCase().includes(search));
+  if(sort==='oldest') data.reverse();
+  const tbody = document.getElementById('log-body');
+  if(!tbody) return;
+  if(data.length===0){ tbody.innerHTML=`<tr><td colspan="6" class="log-empty">${t('No access events recorded')}</td></tr>`; document.getElementById('log-count').textContent='0 '+t('records'); return; }
+  tbody.innerHTML = data.map((e,i)=>`
+    <tr>
+      <td class="log-conf" style="color:var(--text3)">#${accessLog.indexOf(e)+1}</td>
+      <td><div class="log-name">${e.name}</div></td>
+      <td>
+        <span class="log-result ${e.result==='granted'?'ok':'fail'}">
+          ${e.result==='granted'?
+            `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${t('Granted')}`:
+            `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> ${t('Denied')}`}
+        </span>
+      </td>
+      <td class="log-conf">${e.conf}%</td>
+      <td class="log-time">${new Date(e.time).toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'})}</td>
+      <td>
+        <button onclick="accessLog.splice(accessLog.indexOf(accessLog.find(x=>x.id===${e.id})),1);saveStoredData();renderLog();updateDashboard()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px">${t('Remove')}</button>
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('log-count').textContent = data.length+' '+(data.length!==1?t('records'):t('record'));
+}
+
+function clearLog(){
+  accessLog=[];statGranted=0;statDenied=0;confHistory=[];
+  saveStoredData();renderLog();updateDashboard();
+  showToast('info', t('Log Cleared'), t('All access events removed'));
+}
+
+function exportLog(){
+  const csv=['#,Name,Result,Confidence,Time'];
+  accessLog.forEach((e,i)=>csv.push(`${i+1},"${e.name}","${e.result}",${e.conf}%,"${new Date(e.time).toLocaleString()}"`));
+  const blob=new Blob([csv.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='access_log_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
+
+// ======================================================
+// DATABASE
+// ======================================================
+function loadStoredData(){
+  try{
+    const db = localStorage.getItem('sl_face_db');
+    if(db){
+      const parsed = JSON.parse(db);
+      labeledFaceDescriptors = parsed.map(d=>new faceapi.LabeledFaceDescriptors(d.label, d.descriptors.map(x=>new Float32Array(x))));
+      labeledFaceDescriptors.forEach((u,i)=>{ if(!u.role) u.role='Resident'; if(!u.date) u.date=new Date().toISOString(); if(!u.uid) u.uid='U'+String(i+1).padStart(3,'0'); });
+      updateFaceMatcher();
+    }
+    const log = localStorage.getItem('sl_log');
+    if(log){ const p=JSON.parse(log); accessLog=p.log||[]; statGranted=p.granted||0; statDenied=p.denied||0; confHistory=p.conf||[]; }
+    const saved = localStorage.getItem('sl_settings');
+    if(saved) Object.assign(settings, JSON.parse(saved));
+  }catch(e){}
+}
+
+function saveStoredData(){
+  try{
+    const raw = labeledFaceDescriptors.map(d=>({ label:d.label, role:d.role||'Resident', date:d.date||new Date().toISOString(), uid:d.uid||'U000', descriptors:d.descriptors.map(x=>Array.from(x)) }));
+    localStorage.setItem('sl_face_db', JSON.stringify(raw));
+    localStorage.setItem('sl_log', JSON.stringify({ log:accessLog.slice(0,200), granted:statGranted, denied:statDenied, conf:confHistory.slice(-100) }));
+    localStorage.setItem('sl_settings', JSON.stringify(settings));
+  }catch(e){}
+}
+
+function updateFaceMatcher(){
+  faceMatcher = labeledFaceDescriptors.length>0 ? new faceapi.FaceMatcher(labeledFaceDescriptors, settings.threshold) : null;
+}
+
+function renderDatabase(){
+  const search = (document.getElementById('db-search')?.value||'').toLowerCase();
+  let data = labeledFaceDescriptors.filter(u=>!search||u.label.toLowerCase().includes(search));
+  const grid = document.getElementById('user-grid');
+  if(!grid) return;
+  if(data.length===0){ grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:60px 0;color:var(--text3);font-size:13px">${t('No users enrolled yet')}</div>`; }
+  else {
+    grid.innerHTML = data.map(u=>`
+      <div class="user-card">
+        <div class="user-avatar">${u.label.charAt(0).toUpperCase()}</div>
+        <div>
+          <div class="user-card-name">${u.label}</div>
+          <div class="user-card-id">${u.uid||'U???'} &bull; ${t(u.role)||'User'}</div>
+          <div class="user-card-date">${u.date?new Date(u.date).toLocaleDateString('id-ID',{year:'numeric',month:'short',day:'numeric'}):''}</div>
+        </div>
+        <div class="user-card-actions">
+          <button class="btn-sm btn-del" onclick="deleteUser('${u.label}')">${t('Delete')}</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  // Stats
+  const owners = labeledFaceDescriptors.filter(u=>u.role==='Owner').length;
+  const residents = labeledFaceDescriptors.filter(u=>u.role==='Resident').length;
+  const others = labeledFaceDescriptors.length - owners - residents;
+  document.getElementById('db-count').textContent = labeledFaceDescriptors.length;
+  document.getElementById('db-owners').textContent = owners;
+  document.getElementById('db-residents').textContent = residents;
+  document.getElementById('db-guests').textContent = others;
+  document.getElementById('stat-users').textContent = labeledFaceDescriptors.length;
+}
+
+function deleteUser(label){
+  const idx = labeledFaceDescriptors.findIndex(u=>u.label===label);
+  if(idx===-1) return;
+  labeledFaceDescriptors.splice(idx,1);
+  updateFaceMatcher();
+  saveStoredData();
+  renderDatabase();
+  updateDashboard();
+  showToast('info', t('User Removed'), label+' '+t('deleted from database'));
+}
+
+function clearDatabase(){
+  openModal(t('Clear All Faces'), t('Are you sure you want to delete all enrolled faces? This cannot be undone.'),
+    [{label:t('Cancel'),style:'outline',action:closeModal},{label:t('Delete All'),style:'danger',action:()=>{ labeledFaceDescriptors=[];updateFaceMatcher();saveStoredData();renderDatabase();updateDashboard();closeModal();showToast('danger', t('Database Cleared'), t('All users removed')); }}]
+  );
+}
+
+async function registerFace(){
+  const name = document.getElementById('reg-name').value.trim();
+  const role = document.getElementById('reg-role').value;
+  const fileInput = document.getElementById('reg-file');
+  const btn = document.getElementById('btn-register');
+  if(!name){ showToast('danger', t('Validation Error'), t('Please enter a full name')); return; }
+  if(fileInput.files.length===0){ showToast('danger', t('Validation Error'), t('Please select a photo')); return; }
+  if(labeledFaceDescriptors.some(u=>u.label.toLowerCase()===name.toLowerCase())){ showToast('warning', t('Duplicate'), t('User already exists')); return; }
+
+  btn.disabled=true;
+  btn.innerHTML='<div class="spinner" style="width:16px;height:16px;border-width:2px"></div> Processing...';
+
+  try{
+    const image = await faceapi.bufferToImage(fileInput.files[0]);
+    const detection = await faceapi.detectSingleFace(image).withFaceLandmarks().withFaceDescriptor();
+    if(detection){
+      const uid = 'U'+String(labeledFaceDescriptors.length+1).padStart(3,'0');
+      const newUser = new faceapi.LabeledFaceDescriptors(name, [detection.descriptor]);
+      newUser.role = role; newUser.date = new Date().toISOString(); newUser.uid = uid;
+      labeledFaceDescriptors.push(newUser);
+      updateFaceMatcher();
+      saveStoredData();
+      renderDatabase();
+      updateDashboard();
+      showToast('success', t('Enrolled'), ''+name+' '+t('registered successfully'));
+      document.getElementById('reg-name').value='';
+      fileInput.value='';
+      document.getElementById('file-preview').classList.remove('show');
+    } else {
+      showToast('danger', t('No Face Detected'), t('Try a clearer, well-lit photo'));
+    }
+  }catch(e){ showToast('danger', t('Error'), e.message||t('Unknown error')); }
+
+  btn.disabled=false;
+  btn.innerHTML=`<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg> <span data-i18n="Register Face">${t('Register Face')}</span>`;
+}
+
+function previewFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('preview-name').textContent = file.name;
+    document.getElementById('preview-size').textContent = (file.size/1024).toFixed(1)+' KB';
+    document.getElementById('file-preview').classList.add('show');
+  };
+  reader.readAsDataURL(file);
+}
+
+function exportDatabase(){
+  const raw = labeledFaceDescriptors.map(d=>({ label:d.label, role:d.role, date:d.date, uid:d.uid, descriptors:d.descriptors.map(x=>Array.from(x)) }));
+  const blob=new Blob([JSON.stringify(raw,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='smartlock_db_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  showToast('success', t('Exported'), t('Database saved as JSON'));
+}
+
+function importDatabase(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async e=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      labeledFaceDescriptors = parsed.map(d=>{
+        const u = new faceapi.LabeledFaceDescriptors(d.label, d.descriptors.map(x=>new Float32Array(x)));
+        u.role=d.role; u.date=d.date; u.uid=d.uid; return u;
+      });
+      updateFaceMatcher(); saveStoredData(); renderDatabase(); updateDashboard();
+      showToast('success', t('Imported'), parsed.length+' '+t('users loaded'));
+    }catch(err){ showToast('danger', t('Import Failed'), t('Invalid JSON file')); }
+  };
+  reader.readAsText(file);
+}
+
+// ======================================================
+// DASHBOARD
+// ======================================================
+function updateDashboard(){
+  document.getElementById('stat-users').textContent = labeledFaceDescriptors.length;
+  document.getElementById('stat-granted').textContent = statGranted;
+  document.getElementById('stat-denied').textContent = statDenied;
+  const avgConf = confHistory.length ? Math.round(confHistory.reduce((a,b)=>a+b,0)/confHistory.length)+'%' : '—';
+  document.getElementById('stat-conf').textContent = avgConf;
+
+  const dashLog = document.getElementById('dash-log-list');
+  if(!dashLog) return;
+  const recent = accessLog.slice(0,5);
+  if(recent.length===0){ dashLog.innerHTML=`<div class="log-empty">${t('No activity yet')}</div>`; return; }
+  dashLog.innerHTML = recent.map(e=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:32px;height:32px;border-radius:8px;background:${e.result==='granted'?'rgba(16,185,129,.12)':'rgba(239,68,68,.12)'};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:${e.result==='granted'?'var(--success)':'var(--danger)'}">
+          ${e.name.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:500">${e.name}</div>
+          <div style="font-size:11px;color:var(--text2)">${new Date(e.time).toLocaleTimeString('id-ID')}</div>
+        </div>
+      </div>
+      <span class="badge ${e.result==='granted'?'badge-success':'badge-danger'}">${e.result==='granted'?t('Granted'):t('Denied')}</span>
+    </div>
+  `).join('');
+  dashLog.lastElementChild.style.borderBottom='none';
+}
+
+// ======================================================
+// SETTINGS & MULTI-LANGUAGE ENGINE
+// ======================================================
+function applySettingsInputs(){
+  if(document.getElementById('set-language')) document.getElementById('set-language').value = settings.language;
+  if(document.getElementById('set-interval')) document.getElementById('set-interval').value = settings.interval;
+  if(document.getElementById('set-threshold')) document.getElementById('set-threshold').value = settings.threshold.toFixed(2);
+  if(document.getElementById('set-detector')) document.getElementById('set-detector').value = settings.detector;
+  if(document.getElementById('set-lockdelay')) document.getElementById('set-lockdelay').value = settings.lockdelay;
+  if(document.getElementById('set-ip')) document.getElementById('set-ip').value = settings.ip;
+  
+  ['landmarks','bbox','buzzer','logdenied','greeting','darkmode'].forEach(k => {
+    const el = document.getElementById('tog-'+k);
+    if(el) el.classList.toggle('on', settings[k]);
+  });
+}
+
+function applySettings(){
+  settings.interval   = parseInt(document.getElementById('set-interval')?.value)||1000;
+  settings.threshold  = parseFloat(document.getElementById('set-threshold')?.value)||0.6;
+  settings.detector   = document.getElementById('set-detector')?.value||'tiny';
+  settings.lockdelay  = parseInt(document.getElementById('set-lockdelay')?.value)||5;
+  settings.ip         = document.getElementById('set-ip')?.value||'192.168.4.1';
+  settings.language   = document.getElementById('set-language')?.value||'en';
+  
+  document.getElementById('si-interval').textContent = settings.interval+'ms';
+  document.getElementById('si-threshold').textContent = settings.threshold.toFixed(2);
+  document.getElementById('sys-ip').textContent = settings.ip;
+  document.getElementById('set-language').value = settings.language;
+  
+  if(settings.darkmode){ document.documentElement.setAttribute('data-theme', 'dark'); } 
+  else { document.documentElement.removeAttribute('data-theme'); }
+  
+  ['landmarks','bbox','buzzer','logdenied','greeting','darkmode'].forEach(k => {
+    const el = document.getElementById('tog-'+k);
+    if(el) el.classList.toggle('on', settings[k]);
+  });
+
+  if(faceMatcher) updateFaceMatcher();
+  if(modelsLoaded) startRecognition();
+  saveStoredData();
+  
+  applyLanguage();
+}
+
+function applyLanguage() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const translated = t(key);
+    if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) {
+      el.placeholder = translated;
+    } else if (el.tagName === 'OPTION') {
+      el.textContent = translated;
+    } else {
+      el.textContent = translated;
+    }
+  });
+
+  updateDashboard();
+  if(document.getElementById('page-log').classList.contains('active')) renderLog();
+  if(document.getElementById('page-database').classList.contains('active')) renderDatabase();
+  
+  setLockUI(lockOpen);
+  
+  const activeNavItem = document.querySelector('.nav-item.active [data-i18n]');
+  if(activeNavItem) document.getElementById('topbar-title').textContent = t(activeNavItem.getAttribute('data-i18n'));
+  
+  document.getElementById('cam-label').textContent = currentFacingMode==='user' ? t('CAM-01 / FRONT') : t('CAM-01 / REAR');
+}
+
+function toggleSetting(key){
+  settings[key] = !settings[key];
+  const el = document.getElementById('tog-'+key);
+  if(el) el.classList.toggle('on', settings[key]);
+  saveStoredData();
+  if(key === 'darkmode') applySettings();
+}
+
+// ======================================================
+// RESET
+// ======================================================
+function confirmResetSettings() {
+  openModal(
+    t('Reset Settings'), 
+    t('Are you sure you want to reset all settings to default?'),
+    [
+      {label: t('Cancel'), style: 'outline', action: closeModal},
+      {label: t('Reset'), style: 'danger', action: performResetSettings}
+    ]
+  );
+}
+
+function performResetSettings() {
+  settings = { ...defaultSettings };
+  applySettingsInputs();
+  applySettings();
+  
+  closeModal();
+  showToast('success', t('Settings Reset'), t('Settings have been restored to default'));
+}
+
+// ======================================================
+// SNAPSHOT
+// ======================================================
+function takeSnapshot(){
+  const vid = document.getElementById('video');
+  const c = document.createElement('canvas');
+  c.width=vid.videoWidth; c.height=vid.videoHeight;
+  c.getContext('2d').drawImage(vid,0,0);
+  const a=document.createElement('a');
+  a.href=c.toDataURL('image/png');
+  a.download='snapshot_'+Date.now()+'.png';a.click();
+  showToast('info', t('Snapshot Saved'), t('Image downloaded'));
+}
+
+// ======================================================
+// TOAST & MODAL
+// ======================================================
+function showToast(type, title, msg){
+  const wrap = document.getElementById('toast-wrap');
+  const icons = {
+    success:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    danger:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    info:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+    warning:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  };
+  const el = document.createElement('div');
+  el.className = 'toast '+type;
+  el.innerHTML = `<div class="toast-icon">${icons[type]||icons.info}</div><div><div class="toast-title">${title}</div><div class="toast-msg">${msg}</div></div>`;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(110%)'; el.style.transition='.3s'; setTimeout(()=>el.remove(),350); }, 3500);
+}
+
+function openModal(title, body, buttons){
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = `<p style="font-size:13.5px;color:var(--text2);line-height:1.6">${body}</p>`;
+  const footer = document.getElementById('modal-footer');
+  footer.innerHTML = '';
+  (buttons||[]).forEach(b=>{
+    const btn=document.createElement('button');
+    btn.textContent=b.label;
+    btn.style.cssText=`padding:9px 20px;border-radius:8px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;border:none;`;
+    if(b.style==='danger') btn.style.cssText+=`background:var(--danger);color:#fff;`;
+    else if(b.style==='outline') btn.style.cssText+=`background:var(--surface2);border:1px solid var(--border);color:var(--text2);`;
+    else btn.style.cssText+=`background:var(--accent);color:#fff;`;
+    btn.onclick=b.action;
+    footer.appendChild(btn);
+  });
+  document.getElementById('modal-bg').classList.add('show');
+}
+function closeModal(){ document.getElementById('modal-bg').classList.remove('show'); }
+
+// ======================================================
+// TIME / UPTIME
+// ======================================================
+function updateTime(){
+  const now = new Date();
+  const s = now.toLocaleTimeString('id-ID');
+  ['lock-time','lock-time2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=s; });
+}
+
+function updateUptime(){
+  const sec = Math.floor((Date.now()-startTime)/1000);
+  const h=String(Math.floor(sec/3600)).padStart(2,'0');
+  const m=String(Math.floor((sec%3600)/60)).padStart(2,'0');
+  const ss=String(sec%60).padStart(2,'0');
+  const el=document.getElementById('si-uptime');
+  if(el) el.textContent=h+':'+m+':'+ss;
+}
+
+// ======================================================
+// CNN METRICS ENGINE
+// ======================================================
+const cnnMetrics = { tp:0, tn:0, fp:0, fn:0, latencyHistory:[], detCount:0, lastDetTime:0 };
+
+function recordCNNResult(isKnownUser, matchFound) {
+  if (isKnownUser && matchFound) cnnMetrics.tp++;
+  else if (!isKnownUser && !matchFound) cnnMetrics.tn++;
+  else if (!isKnownUser && matchFound) cnnMetrics.fp++;
+  else if (isKnownUser && !matchFound) cnnMetrics.fn++;
+}
+
+function recordLatency(ms) {
+  cnnMetrics.latencyHistory.push(ms);
+  if (cnnMetrics.latencyHistory.length > 100) cnnMetrics.latencyHistory.shift();
+  cnnMetrics.detCount++;
+  cnnMetrics.lastDetTime = Date.now();
+}
+
+function renderCNNPage() {
+  const {tp,tn,fp,fn} = cnnMetrics;
+  const total = tp+tn+fp+fn;
+  const acc = total ? ((tp+tn)/total*100) : 0;
+  const prec = (tp+fp) ? (tp/(tp+fp)*100) : 0;
+  const rec = (tp+fn) ? (tp/(tp+fn)*100) : 0;
+  const f1 = (prec+rec) ? (2*prec*rec/(prec+rec)) : 0;
+
+  const s = id => document.getElementById(id);
+  if(s('cnn-accuracy')) s('cnn-accuracy').textContent = total ? acc.toFixed(1)+'%' : '—';
+  if(s('cnn-precision')) s('cnn-precision').textContent = total ? prec.toFixed(1)+'%' : '—';
+  if(s('cnn-recall')) s('cnn-recall').textContent = total ? rec.toFixed(1)+'%' : '—';
+  if(s('cnn-f1')) s('cnn-f1').textContent = total ? f1.toFixed(1)+'%' : '—';
+
+  if(s('cm-tp')) s('cm-tp').textContent = tp;
+  if(s('cm-tn')) s('cm-tn').textContent = tn;
+  if(s('cm-fp')) s('cm-fp').textContent = fp;
+  if(s('cm-fn')) s('cm-fn').textContent = fn;
+  if(s('cm-total')) s('cm-total').textContent = 'Total Samples: '+total;
+
+  // Formulas
+  if(s('f-tp1')) s('f-tp1').textContent=tp; if(s('f-tn1')) s('f-tn1').textContent=tn;
+  if(s('f-total1')) s('f-total1').textContent=total; if(s('f-acc')) s('f-acc').textContent=acc.toFixed(2)+'%';
+  if(s('f-tp2')) s('f-tp2').textContent=tp; if(s('f-tp2b')) s('f-tp2b').textContent=tp;
+  if(s('f-fp2')) s('f-fp2').textContent=fp; if(s('f-prec')) s('f-prec').textContent=prec.toFixed(2)+'%';
+  if(s('f-tp3')) s('f-tp3').textContent=tp; if(s('f-tp3b')) s('f-tp3b').textContent=tp;
+  if(s('f-fn3')) s('f-fn3').textContent=fn; if(s('f-recall')) s('f-recall').textContent=rec.toFixed(2)+'%';
+  if(s('f-p4')) s('f-p4').textContent=(prec/100).toFixed(4); if(s('f-r4')) s('f-r4').textContent=(rec/100).toFixed(4);
+  if(s('f-pr4')) s('f-pr4').textContent=((prec+rec)/100).toFixed(4); if(s('f-f1')) s('f-f1').textContent=f1.toFixed(2)+'%';
+
+  // Latency stats
+  const lh = cnnMetrics.latencyHistory;
+  if(lh.length>0){
+    const avg=Math.round(lh.reduce((a,b)=>a+b,0)/lh.length);
+    const mn=Math.round(Math.min(...lh)); const mx=Math.round(Math.max(...lh));
+    const fps=avg>0?(1000/avg).toFixed(1):'—';
+    if(s('lat-avg')) s('lat-avg').textContent=avg; if(s('lat-min')) s('lat-min').textContent=mn;
+    if(s('lat-max')) s('lat-max').textContent=mx; if(s('lat-fps')) s('lat-fps').textContent=fps;
+  }
+  drawSparkline();
+}
+
+function drawSparkline(){
+  const canvas=document.getElementById('latency-sparkline'); if(!canvas) return;
+  const ctx=canvas.getContext('2d'); const dpr=window.devicePixelRatio||1;
+  canvas.width=canvas.offsetWidth*dpr; canvas.height=canvas.offsetHeight*dpr;
+  ctx.scale(dpr,dpr); const w=canvas.offsetWidth,h=canvas.offsetHeight;
+  ctx.clearRect(0,0,w,h);
+  const data=cnnMetrics.latencyHistory; if(data.length<2) return;
+  const max=Math.max(...data,1); const min=Math.min(...data,0);
+  const range=max-min||1; const step=w/(data.length-1);
+  ctx.beginPath(); ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#4f8ef7';
+  ctx.lineWidth=1.5; ctx.lineJoin='round';
+  data.forEach((v,i)=>{const x=i*step;const y=h-((v-min)/range)*h*0.85-h*0.05;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+  // Fill gradient
+  ctx.lineTo((data.length-1)*step,h); ctx.lineTo(0,h); ctx.closePath();
+  const grd=ctx.createLinearGradient(0,0,0,h);
+  grd.addColorStop(0,'rgba(79,142,247,0.15)'); grd.addColorStop(1,'rgba(79,142,247,0)');
+  ctx.fillStyle=grd; ctx.fill();
+}
+
+// ======================================================
+// CAMERA MANAGER
+// ======================================================
+let cameraMode = 'single';
+let availableCameras = [];
+let remotePeers = {};
+let myPeer = null;
+let peerIdForQR = '';
+
+async function enumerateCameras(){
+  try{
+    const devices=await navigator.mediaDevices.enumerateDevices();
+    availableCameras=devices.filter(d=>d.kind==='videoinput');
+    const sel=document.getElementById('cam-source-select'); if(!sel) return;
+    sel.innerHTML='';
+    availableCameras.forEach((cam,i)=>{
+      const opt=document.createElement('option');
+      opt.value=cam.deviceId||cam.groupId;
+      opt.textContent=cam.label||(i===0?'Default — Primary Camera':'Camera '+(i+1));
+      sel.appendChild(opt);
+    });
+    // Add remote option
+    const remOpt=document.createElement('option'); remOpt.value='__qr_pair__'; remOpt.textContent='➕ Add via QR Code...';
+    sel.appendChild(remOpt);
+  }catch(e){}
+}
+
+async function switchCameraSource(deviceId){
+  if(deviceId==='__qr_pair__'){openQRPairingModal();return;}
+  const vid=document.getElementById('video');
+  if(vid.srcObject){vid.srcObject.getTracks().forEach(tr=>tr.stop());}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:deviceId},width:{ideal:640},height:{ideal:480}}});
+    vid.srcObject=stream;
+    const cam=availableCameras.find(c=>c.deviceId===deviceId);
+    document.getElementById('cam-label').textContent=cam?.label||'Camera';
+  }catch(e){showToast('danger',t('Camera Error'),t('Could not access camera'));}
+}
+
+function setCameraMode(mode){
+  cameraMode=mode;
+  document.getElementById('cam-mode-single').classList.toggle('active',mode==='single');
+  document.getElementById('cam-mode-multi').classList.toggle('active',mode==='multiple');
+  document.getElementById('multi-cam-grid').style.display=mode==='multiple'?'grid':'none';
+  document.getElementById('devices-panel').style.display=mode==='multiple'?'block':'none';
+}
+
+function toggleFullscreen(){
+  const wrap=document.getElementById('video-wrap');
+  if(!document.fullscreenElement){wrap.requestFullscreen().catch(()=>{});}
+  else{document.exitFullscreen();}
+}
+
+function openQRPairingModal(){
+  if(!myPeer){
+    peerIdForQR='sl-'+Math.random().toString(36).substr(2,8);
+    myPeer=new Peer(peerIdForQR,{debug:0});
+    myPeer.on('call',call=>{
+      call.answer();
+      call.on('stream',remoteStream=>{addRemoteFeed(call.peer,remoteStream);});
+    });
+    myPeer.on('error',e=>{showToast('danger','Peer Error',e.message);});
+  }
+  const pairingUrl=window.location.origin+window.location.pathname+'?pair='+peerIdForQR;
+  openModal(t('Pair Device via QR Code'),`<div class="qr-modal-content"><canvas id="qr-canvas"></canvas><div class="qr-instructions">${t('Scan this QR code with a secondary device to bridge its camera into the system.')}<br><br><code style="font-size:11px;color:var(--accent);word-break:break-all">${pairingUrl}</code></div></div>`,[{label:t('Cancel'),style:'outline',action:closeModal}]);
+  setTimeout(()=>{
+    const qrCanvas=document.getElementById('qr-canvas');
+    if(qrCanvas&&typeof QRCode!=='undefined'){QRCode.toCanvas(qrCanvas,pairingUrl,{width:200,margin:2},()=>{});}
+  },100);
+}
+
+function addRemoteFeed(peerId,stream){
+  remotePeers[peerId]=stream;
+  const grid=document.getElementById('multi-cam-grid');
+  const card=document.createElement('div');card.className='remote-cam-card';card.id='remote-'+peerId;
+  const vid=document.createElement('video');vid.autoplay=true;vid.playsInline=true;vid.muted=true;vid.srcObject=stream;
+  const label=document.createElement('div');label.className='remote-cam-label';label.textContent='REMOTE-'+peerId.slice(-4).toUpperCase();
+  const close=document.createElement('button');close.className='remote-cam-close';close.innerHTML='✕';
+  close.onclick=()=>{removeRemoteFeed(peerId);};
+  card.appendChild(vid);card.appendChild(label);card.appendChild(close);grid.appendChild(card);
+  updateGridLayout();renderDevicesList();
+  if(cameraMode==='single'){setCameraMode('multiple');}
+  showToast('success','Device Paired','Remote camera connected: '+peerId.slice(-4).toUpperCase());
+  closeModal();
+}
+
+function removeRemoteFeed(peerId){
+  const el=document.getElementById('remote-'+peerId);if(el)el.remove();
+  delete remotePeers[peerId]; updateGridLayout(); renderDevicesList();
+}
+
+function updateGridLayout(){
+  const grid=document.getElementById('multi-cam-grid');
+  const count=Object.keys(remotePeers).length;
+  grid.className='multi-cam-grid '+(count<=1?'grid-1':count<=4?'grid-2x':'grid-3x');
+}
+
+function renderDevicesList(){
+  const list=document.getElementById('devices-list');if(!list)return;
+  const peers=Object.keys(remotePeers);
+  if(peers.length===0){list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">'+t('No paired devices')+'</div>';return;}
+  list.innerHTML=peers.map(p=>`<div class="device-item"><div class="device-info"><div class="device-dot"></div><div><div style="font-size:13px;font-weight:500">REMOTE-${p.slice(-4).toUpperCase()}</div><div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${p}</div></div></div><button onclick="removeRemoteFeed('${p}')" style="background:none;border:none;color:var(--danger);font-size:11px;font-weight:600;cursor:pointer">${t('Remove')}</button></div>`).join('');
+}
+
+// Handle QR pair URL on secondary device
+(function checkPairMode(){
+  const params=new URLSearchParams(window.location.search);
+  const pairTarget=params.get('pair');
+  if(pairTarget){
+    document.body.innerHTML='<div style="position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:DM Sans,sans-serif;z-index:99999"><div class="spinner" style="border-color:rgba(255,255,255,.2);border-top-color:#fff;width:40px;height:40px;margin-bottom:20px"></div><div style="font-size:16px;font-weight:600">Connecting Camera...</div><div style="font-size:12px;opacity:.6;margin-top:8px">Streaming to primary device</div><video id="pair-video" autoplay playsinline muted style="position:fixed;inset:0;width:100%;height:100%;object-fit:cover;opacity:.3;z-index:-1"></video></div>';
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}}}).then(stream=>{
+      document.getElementById('pair-video').srcObject=stream;
+      const peer=new Peer(undefined,{debug:0});
+      peer.on('open',()=>{const call=peer.call(pairTarget,stream);});
+    }).catch(e=>{document.body.innerHTML='<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;background:#000;font-family:sans-serif">Camera access denied</div>';});
+  }
+})();
+
+// ======================================================
+// RECOGNITION DIALOGS
+// ======================================================
+let grantedDialogTimer=null;
+let deniedDialogTimer=null;
+
+function showGrantedDialog(name){
+  document.getElementById('recog-granted-name').textContent=name;
+  document.getElementById('recog-dialog-granted').classList.add('show');
+  if(grantedDialogTimer) clearTimeout(grantedDialogTimer);
+  grantedDialogTimer=setTimeout(()=>{document.getElementById('recog-dialog-granted').classList.remove('show');},3000);
+}
+
+function showDeniedDialog(){
+  document.getElementById('recog-dialog-denied').classList.add('show');
+  if(deniedDialogTimer) clearTimeout(deniedDialogTimer);
+  deniedDialogTimer=setTimeout(()=>{document.getElementById('recog-dialog-denied').classList.remove('show');},4000);
+}
+
+// ======================================================
+// WPPCONNECT MANAGER
+// ======================================================
+let waSettings = { apiUrl:'http://localhost:21465', session:'default', secret:'', phones:[], mode:'auto' };
+
+function loadWASettings(){
+  try{ const s=localStorage.getItem('sl_wa'); if(s) waSettings=JSON.parse(s); }catch(e){}
+  applyWASettingsUI();
+}
+
+function saveWASettings(){
+  waSettings.apiUrl=document.getElementById('wa-api-url')?.value||waSettings.apiUrl;
+  waSettings.session=document.getElementById('wa-session')?.value||waSettings.session;
+  waSettings.secret=document.getElementById('wa-secret')?.value||waSettings.secret;
+  try{localStorage.setItem('sl_wa',JSON.stringify(waSettings));}catch(e){}
+}
+
+function applyWASettingsUI(){
+  const s=id=>document.getElementById(id);
+  if(s('wa-api-url')) s('wa-api-url').value=waSettings.apiUrl;
+  if(s('wa-session')){s('wa-session').value=waSettings.session;s('wa-session-info').textContent='Session: '+waSettings.session;}
+  if(s('wa-secret')) s('wa-secret').value=waSettings.secret;
+  renderWAPhones();
+  setWAMode(waSettings.mode||'auto');
+}
+
+function setWAMode(mode){
+  waSettings.mode=mode;
+  document.getElementById('wa-mode-auto')?.classList.toggle('active',mode==='auto');
+  document.getElementById('wa-mode-manual')?.classList.toggle('active',mode==='manual');
+  const desc=document.getElementById('wa-mode-desc');
+  if(desc) desc.textContent=mode==='auto'?t('Auto mode sends notifications in real-time for every access event.'):t('Manual mode: use bulk export. Security override still active for denied access.');
+  saveWASettings();
+}
+
+function addWAPhone(){
+  const input=document.getElementById('wa-new-phone');
+  const phone=input?.value?.replace(/\D/g,'');
+  if(!phone||phone.length<10){showToast('danger',t('Error'),t('Enter a valid phone number'));return;}
+  if(!waSettings.phones.includes(phone)){waSettings.phones.push(phone);}
+  input.value=''; renderWAPhones(); saveWASettings();
+}
+
+function removeWAPhone(phone){
+  waSettings.phones=waSettings.phones.filter(p=>p!==phone);
+  renderWAPhones(); saveWASettings();
+}
+
+function renderWAPhones(){
+  const list=document.getElementById('wa-phone-list');if(!list)return;
+  if(waSettings.phones.length===0){list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px">'+t('No target numbers configured')+'</div>';return;}
+  list.innerHTML=waSettings.phones.map(p=>`<span class="wa-phone-tag">📱 +${p}<span class="remove-phone" onclick="removeWAPhone('${p}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span></span>`).join('');
+}
+
+async function waApiCall(endpoint,method='GET',body=null){
+  const url=waSettings.apiUrl+'/api/'+waSettings.session+'/'+endpoint;
+  const headers={'Content-Type':'application/json'};
+  if(waSettings.secret) headers['Authorization']='Bearer '+waSettings.secret;
+  try{
+    const opts={method,headers};
+    if(body) opts.body=JSON.stringify(body);
+    const r=await fetch(url,opts);return await r.json();
+  }catch(e){return {status:'error',message:e.message};}
+}
+
+async function checkWAConnection(){
+  showToast('info','WhatsApp','Checking connection...');
+  const r=await waApiCall('check-connection-session');
+  const dot=document.getElementById('wa-status-dot');
+  const txt=document.getElementById('wa-status-text');
+  if(r&&r.status!=='error'){
+    dot?.classList.remove('offline');dot?.classList.add('online');
+    if(txt) txt.textContent=t('Connected');
+    showToast('success','WhatsApp',t('Session is active'));
+  }else{
+    dot?.classList.remove('online');dot?.classList.add('offline');
+    if(txt) txt.textContent=t('Disconnected');
+    showToast('danger','WhatsApp',r?.message||t('Connection failed'));
+  }
+}
+
+async function sendWAMessage(phone,text,imageBase64){
+  if(imageBase64){
+    return waApiCall('send-image',  'POST',{phone,isGroup:false,filename:'snapshot.jpg',caption:text,base64:imageBase64});
+  }
+  return waApiCall('send-message','POST',{phone,isGroup:false,message:text});
+}
+
+function captureSnapshotBase64(){
+  const vid=document.getElementById('video'); if(!vid||!vid.videoWidth) return null;
+  const c=document.createElement('canvas');c.width=vid.videoWidth;c.height=vid.videoHeight;
+  c.getContext('2d').drawImage(vid,0,0);
+  return c.toDataURL('image/jpeg',0.7);
+}
+
+async function handleWANotification(logEntry){
+  if(waSettings.phones.length===0) return;
+  // Security override: ALWAYS send on denied
+  if(logEntry.result==='denied'){
+    const snap=captureSnapshotBase64();
+    const msg=`🚨 *SmartLock Security Alert*\n\n⛔ *ACCESS DENIED*\n📅 ${new Date(logEntry.time).toLocaleString()}\n👤 Face: ${logEntry.name}\n📊 Confidence: ${logEntry.conf}%\n🔒 Door: LOCKED\n\n⚠️ Unauthorized access attempt.`;
+    for(const phone of waSettings.phones){await sendWAMessage(phone,msg,snap);}
+    return;
+  }
+  // Auto mode: send on granted too
+  if(waSettings.mode==='auto'&&logEntry.result==='granted'){
+    const msg=`✅ *SmartLock Access*\n\n🔓 *ACCESS GRANTED*\n📅 ${new Date(logEntry.time).toLocaleString()}\n👤 ${logEntry.name}\n📊 Confidence: ${logEntry.conf}%`;
+    for(const phone of waSettings.phones){await sendWAMessage(phone,msg);}
+  }
+}
+
+async function bulkExportToWA(){
+  if(waSettings.phones.length===0){showToast('danger',t('Error'),t('No target numbers configured'));return;}
+  const from=document.getElementById('wa-export-from')?.value;
+  const to=document.getElementById('wa-export-to')?.value;
+  let data=[...accessLog];
+  if(from) data=data.filter(e=>new Date(e.time)>=new Date(from));
+  if(to) data=data.filter(e=>new Date(e.time)<=new Date(to+'T23:59:59'));
+  if(data.length===0){showToast('info',t('WhatsApp'),t('No records to export'));return;}
+  let msg=`📋 *SmartLock Access Log Export*\n📅 ${new Date().toLocaleDateString()}\n📊 ${data.length} records\n\n`;
+  data.slice(0,50).forEach((e,i)=>{msg+=`${i+1}. ${e.result==='granted'?'✅':'⛔'} ${e.name} — ${e.conf}% — ${new Date(e.time).toLocaleString()}\n`;});
+  if(data.length>50) msg+=`\n... and ${data.length-50} more records.`;
+  for(const phone of waSettings.phones){await sendWAMessage(phone,msg);}
+  showToast('success',t('WhatsApp'),t('Logs sent to ')+waSettings.phones.length+' numbers');
+}
+
+async function sendTestWAMessage(){
+  if(waSettings.phones.length===0){showToast('danger',t('Error'),t('No target numbers configured'));return;}
+  const msg='🔔 *SmartLock Test*\n\nThis is a test notification from your SmartLock system.\n✅ WPPConnect integration is working correctly.\n⏰ '+new Date().toLocaleString();
+  for(const phone of waSettings.phones){await sendWAMessage(phone,msg);}
+  showToast('success',t('WhatsApp'),t('Test message sent'));
+}
+
+// ======================================================
+// HYBRID NETWORK MANAGER
+// ======================================================
+let espConnected=false;
+const ESP_BASE=()=>'http://'+settings.ip;
+
+async function checkESPConnection(){
+  try{
+    const r=await fetch(ESP_BASE()+'/heartbeat',{signal:AbortSignal.timeout(3000)});
+    espConnected=r.ok;
+  }catch(e){espConnected=false;}
+  const dot=document.getElementById('sys-dot');
+  const label=document.getElementById('sys-label');
+  if(dot){dot.style.background=espConnected?'var(--success)':'var(--danger)';dot.style.animation=espConnected?'pulse 2s infinite':'none';}
+  if(label) label.textContent=espConnected?t('System Online'):t('System Offline');
+}
+
+setInterval(checkESPConnection,10000);
+
+// ======================================================
+// HOOKS — Patch existing functions
+// ======================================================
+// Patch runDetection to measure latency + CNN metrics
+const _origRunDetection = runDetection;
+runDetection = async function(){
+  const t0=performance.now();
+  await _origRunDetection();
+  const latency=performance.now()-t0;
+  recordLatency(latency);
+  if(currentTab==='cnn') renderCNNPage();
+};
+
+// Patch logAccess to trigger WA notifications + CNN + dialogs
+const _origLogAccess = logAccess;
+logAccess = function(name,conf,result){
+  _origLogAccess(name,conf,result);
+  const entry={name,conf,result,time:new Date().toISOString()};
+  // CNN metric
+  const isRegistered=labeledFaceDescriptors.some(u=>u.label===name);
+  recordCNNResult(isRegistered,result==='granted');
+  // WA notification
+  handleWANotification(entry);
+  // Dialog
+  if(result==='granted'&&settings.greeting) showGrantedDialog(name);
+  else if(result==='denied') showDeniedDialog();
+};
+
+// Patch navigate for new pages
+const _origNavigate = navigate;
+navigate = function(tab,silent=false){
+  _origNavigate(tab,silent);
+  if(tab==='cnn') renderCNNPage();
+  if(tab==='whatsapp') applyWASettingsUI();
+  if(tab==='scanner') enumerateCameras();
+};
+
+// Init WA + camera enum on load
+const _origOnload = window.onload;
+window.onload = () => {
+  _origOnload?.();
+  loadWASettings();
+  enumerateCameras();
+};
+
+</script>
+</body>
+</html>
