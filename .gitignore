@@ -1,0 +1,23 @@
+# OS files
+.DS_Store
+*.DS_Store
+
+# Heavy directories & server code (excluded from GitHub as requested)
+wppconnect-server/
+iot_smartdoorlock/wppconnect-server/
+node_modules/
+venv/
+
+# Large binaries & archives
+*.zip
+*.bin
+iot_smartdoorlock/wppconnect-server.zip
+iot_smartdoorlock/littlefs.bin
+
+# Agent & Config folders
+.agents/
+.agents
+
+# Credentials & Private keys
+*.pem
+aws-server.pem
